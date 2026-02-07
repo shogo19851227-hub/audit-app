@@ -592,6 +592,7 @@
 
         function renderGame(el) {
             window.scrollTo(0, 0); // リセット: スクロール位置
+            setTimeout(() => window.scrollTo(0, 0), 0); // 念のため非同期でもリセット
             const isSpecial = state.opinion.theme === 'special';
 
             // Re-apply body classes for Game Mode (important when returning from Result screen)
@@ -808,6 +809,7 @@
         }
 
         function renderResult(el) {
+            window.scrollTo(0, 0); // リセット
             document.body.className = 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 overflow-y-auto';
 
             const isSpecial = state.opinion.theme === 'special';
