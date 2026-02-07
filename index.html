@@ -509,7 +509,8 @@
             div.onclick = (e) => {
                 e.stopPropagation();
                 // 既に配置済みの場合は削除(プールに戻す)扱い、プールにある場合は選択扱い
-                const isPlaced = Object.values(state.placedItems).some(arr => arr.includes(kw.id)) || state.trashItems.includes(kw.id);
+                // 除外BOX内のアイテムは「配置済み」ではなく「プール」と同様に選択可能にする
+                const isPlaced = Object.values(state.placedItems).some(arr => arr.includes(kw.id));
 
                 if (isPlaced) {
                     const currentTime = new Date().getTime();
