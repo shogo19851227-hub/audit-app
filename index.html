@@ -340,9 +340,10 @@
         function handleSlotClick(targetType, targetKey) {
             if (!state.selectedKeywordId) return;
 
-            // 移動実行
-            moveKeyword(state.selectedKeywordId, targetType, targetKey);
-            state.selectedKeywordId = null; // 移動後は選択解除
+            // 移動実行 (移動前にIDを退避し、Stateをクリアする)
+            const idToMove = state.selectedKeywordId;
+            state.selectedKeywordId = null; // 先に選択解除
+            moveKeyword(idToMove, targetType, targetKey);
         }
 
         // --- Drag & Drop Mechanics (Original) ---
