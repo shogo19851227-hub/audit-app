@@ -241,7 +241,8 @@
             feedback: null,
             shuffledKeywords: [],
             selectedKeywordId: null, // 新規: タップ選択用
-            isTrashMode: false // 新規: 除外BOXモード(モバイル用)
+            isTrashMode: false, // 新規: 除外BOXモード(モバイル用)
+            trashBtnConfirm: false // 新規: モード切替確認用
         };
 
         // --- ロジック ---
@@ -306,10 +307,9 @@
             render();
         }
 
-        // --- 除外BOX操作ロジック (New) ---
-        let lastTrashTap = 0;
+        // --- 除外BOX操作ロジック (New: 2-step Toggle) ---
         function handleTrashBtnClick() {
-            // 1. キーワードが選択されている場合: 移動実行(モードによって方向が逆)
+            // 1. キーワードが選択されている場合: 移動実行
             if (state.selectedKeywordId) {
                 if (state.isTrashMode) {
                     // 除外BOX -> プールに戻す
@@ -319,27 +319,22 @@
                     moveKeyword(state.selectedKeywordId, 'trash');
                 }
                 state.selectedKeywordId = null;
-                // moveKeyword/removeKeyword 内でrenderされる
+                state.trashBtnConfirm = false; // Reset confirm state execution
+                // moveKeyword/removeKeyword trigger render
                 return;
             }
 
-            // 2. 選択されていない場合: モード切替(ダブルタップ)
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTrashTap;
-            if (tapLength < 300 && tapLength > 0) {
-                // Double Tap: モード切替
-                state.isTrashMode = !state.isTrashMode;
-                state.selectedKeywordId = null;
+            // 2. 選択されていない場合: モード切替 (2-Step)
+            if (!state.trashBtnConfirm) {
+                // 1st Tap: Confirm
+                state.trashBtnConfirm = true;
                 render();
             } else {
-                // Single Tap Visual Cue
-                const btn = document.getElementById('trash-btn');
-                if (btn) {
-                    btn.classList.add('animate-pulse', 'ring-2', 'ring-slate-300');
-                    setTimeout(() => btn.classList.remove('animate-pulse', 'ring-2', 'ring-slate-300'), 500);
-                }
+                // 2nd Tap: Toggle Mode
+                state.isTrashMode = !state.isTrashMode;
+                state.trashBtnConfirm = false; // Reset
+                render();
             }
-            lastTrashTap = currentTime;
         }
 
         function handleSlotClick(targetType, targetKey) {
@@ -625,10 +620,16 @@
                             <div class="relative">
                                 <button id="trash-btn" onclick="handleTrashBtnClick()" class="p-2 rounded-full transition-colors flex items-center gap-2 px-4 shadow-sm border
                                     ${state.isTrashMode
-                    ? 'bg-blue-100 text-blue-600 border-blue-200'
-                    : (state.selectedKeywordId ? 'bg-red-100 text-red-600 border-red-200 animate-pulse' : 'bg-slate-100 text-slate-500 border-slate-200')}">
+                    ? (state.selectedKeywordId ? 'bg-blue-100 text-blue-600 border-blue-200' : (state.trashBtnConfirm ? 'bg-white border-blue-500 ring-2 ring-blue-500 text-blue-600' : 'bg-blue-50 text-blue-400 border-blue-100'))
+                    : (state.selectedKeywordId ? 'bg-red-100 text-red-600 border-red-200 animate-pulse' : (state.trashBtnConfirm ? 'bg-white border-slate-500 ring-2 ring-slate-400 text-slate-600' : 'bg-slate-100 text-slate-500 border-slate-200'))}">
                                     ${state.isTrashMode ? icons.rotate : icons.trash}
-                                    <span class="text-[10px] font-bold">${state.isTrashMode ? (state.selectedKeywordId ? 'プールへ戻す' : 'プールへ(D-Tap)') : (state.selectedKeywordId ? '除外する' : '除外BOX(D-Tap)')}</span>
+                                    <span class="text-[10px] font-bold">
+                                        ${state.selectedKeywordId
+                    ? (state.isTrashMode ? 'プールへ戻す' : '除外する')
+                    : (state.trashBtnConfirm
+                        ? (state.isTrashMode ? 'プールへ' : '除外BOXへ')
+                        : (state.isTrashMode ? 'プール' : '除外BOX'))}
+                                    </span>
                                 </button>
                             </div>
                         </div>
