@@ -672,6 +672,24 @@
                 const isRemoved = isSpecial && ['kam', 'oi', 'gc'].includes(cat.key);
                 const placedIds = state.placedItems[cat.key] || [];
 
+                // --- Dynamic Header Logic (New) ---
+                let displayName = cat.name;
+                if (state.opinion) {
+                    if (cat.key === 'opinion') {
+                        if (state.opinion.id === 'qualified_mist' || state.opinion.id === 'qualified_scope') displayName = "2. 限定付適正意見";
+                        else if (state.opinion.id === 'adverse') displayName = "2. 不適正意見";
+                        else if (state.opinion.id === 'disclaimer') displayName = "2. 意見不表明";
+                        else displayName = "2. 監査意見";
+                    }
+                    if (cat.key === 'basis') {
+                        if (state.opinion.id === 'qualified_mist' || state.opinion.id === 'qualified_scope') displayName = "3. 限定付適正意見の根拠";
+                        else if (state.opinion.id === 'adverse') displayName = "3. 不適正意見の根拠";
+                        else if (state.opinion.id === 'disclaimer') displayName = "3. 意見不表明の根拠";
+                        else displayName = "3. 監査意見の根拠";
+                    }
+                }
+                // ----------------------------------
+
                 const slot = document.createElement('div');
                 slot.className = `relative group transition-all min-h-[90px] flex flex-col tap-target`; // tap-target added
 
@@ -721,7 +739,7 @@
                 slot.innerHTML = `
                     <div class="flex-grow flex flex-col p-3 md:p-4 rounded-2xl border-2 transition-all ${baseStyle}">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-[10px] font-black uppercase tracking-widest ${isSpecial ? 'text-slate-500' : 'text-slate-400'}">${cat.name}</span>
+                            <span class="text-[10px] font-black uppercase tracking-widest ${isSpecial ? 'text-slate-500' : 'text-slate-400'}">${displayName}</span>
                             ${isRemoved
                         ? (isSpecial && cat.key === 'gc'
                             ? '<span class="text-[9px] font-black text-rose-500 bg-rose-50/10 px-2 py-0.5 rounded-full border border-rose-500/20">原則不要</span>'
