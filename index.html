@@ -108,26 +108,6 @@
             cursor: pointer;
             touch-action: manipulation;
         }
-
-        /* モバイル用レイアウト調整 */
-        @media (max-width: 1024px) {
-            .mobile-fixed-bottom {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                height: 45vh;
-                /* 下部45%をキーワードエリアに */
-                z-index: 50;
-                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
-            }
-
-            .mobile-scroll-top {
-                height: 55vh;
-                /* 上部55%をスロットエリアに */
-                padding-bottom: 20px;
-            }
-        }
     </style>
 </head>
 
@@ -616,8 +596,8 @@
             el.innerHTML = `
                 <div class="${containerClass}">
                     
-                    <!-- Top Area: Header + Slots (Mobile: 55%, Desktop: Left Half) -->
-                    <div class="w-full lg:w-1/2 flex flex-col h-full lg:h-auto overflow-hidden mobile-scroll-top lg:pr-4">
+                    <!-- Top Area: Header + Slots (Mobile: Flex-grow to fill space) -->
+                    <div class="w-full lg:w-1/2 flex flex-col flex-1 lg:h-auto min-h-0 overflow-hidden lg:pr-4">
                         <header class="flex-none p-4 pb-2 flex items-center justify-between gap-2 z-20 bg-inherit border-b lg:border-none border-slate-200/10">
                             <button onclick="state.screen='select';render();" class="flex items-center gap-1 font-bold px-3 py-2 rounded-xl border text-xs transition-colors ${headerBtnClass}">
                                 ${icons.chevronLeft} TOP
@@ -630,11 +610,11 @@
                             </button>
                         </header>
 
-                        <div class="flex-grow overflow-y-auto p-4 pt-2 space-y-3 custom-scrollbar pb-48" id="slots"></div>
+                        <div class="flex-grow overflow-y-auto p-4 pt-2 space-y-3 custom-scrollbar pb-16" id="slots"></div>
                     </div>
                     
-                    <!-- Bottom Area: Keywords + Trash (Mobile: Fixed 45%, Desktop: Right Half) -->
-                    <div class="w-full lg:w-1/2 flex flex-col lg:h-full mobile-fixed-bottom lg:static lg:p-4 lg:pl-0">
+                    <!-- Bottom Area: Keywords + Trash (Mobile: Fixed height 40%, stacked below Top Area) -->
+                    <div class="w-full lg:w-1/2 flex flex-col h-[40%] lg:h-full flex-none lg:static lg:p-4 lg:pl-0 border-t border-slate-200/50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-30 bg-inherit">
                         <div class="flex items-center justify-between px-4 py-2 bg-inherit border-b border-slate-200/10 z-20" data-mode="${state.isTrashMode ? 'trash' : 'pool'}">
                             <h3 class="font-bold text-xs uppercase tracking-wider opacity-70 flex items-center gap-2">
                                 ${state.isTrashMode ? '除外ボックス (Trash)' : '選択肢 (Keywords)'}
