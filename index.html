@@ -827,6 +827,19 @@
                 }
                 grid.appendChild(card);
             });
+
+            // === レンダリング完了後のスクロールリセット ===
+            requestAnimationFrame(() => {
+                window.scrollTo(0, 0);
+                document.body.scrollTop = 0;
+                document.documentElement.scrollTop = 0;
+                el.scrollTop = 0;
+                // ヘッダーを確実に表示
+                const header = el.querySelector('header');
+                if (header) {
+                    header.scrollIntoView({ behavior: 'instant', block: 'start' });
+                }
+            });
         }
 
         function renderResult(el) {
