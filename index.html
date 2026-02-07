@@ -279,6 +279,14 @@
         }
 
         function startGame(typeId) {
+            // === 包括的スクロールリセット（画面遷移前）===
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+            const appEl = document.getElementById('app');
+            if (appEl) appEl.scrollTop = 0;
+            // =============================================
+
             state.opinion = OPINION_TYPES.find(o => o.id === typeId);
             state.placedItems = {};
             CATEGORIES.forEach(c => state.placedItems[c.key] = []);
@@ -554,7 +562,14 @@
 
         // --- 画面描画 ---
         function renderSelect(el) {
-            window.scrollTo(0, 0); // リセット
+            // --- 包括的スクロールリセット ---
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+            const appEl = document.getElementById('app');
+            if (appEl) appEl.scrollTop = 0;
+            // --------------------------------
+
             document.body.className = 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 overflow-y-auto';
             el.innerHTML = `
                 <div class="min-h-screen flex items-center justify-center p-4 md:p-6 fade-in">
@@ -591,8 +606,14 @@
         }
 
         function renderGame(el) {
-            window.scrollTo(0, 0); // リセット: スクロール位置
-            setTimeout(() => window.scrollTo(0, 0), 0); // 念のため非同期でもリセット
+            // --- 包括的スクロールリセット ---
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+            const appEl = document.getElementById('app');
+            if (appEl) appEl.scrollTop = 0;
+            // --------------------------------
+
             const isSpecial = state.opinion.theme === 'special';
 
             // Re-apply body classes for Game Mode (important when returning from Result screen)
@@ -809,7 +830,14 @@
         }
 
         function renderResult(el) {
-            window.scrollTo(0, 0); // リセット
+            // --- 包括的スクロールリセット ---
+            window.scrollTo(0, 0);
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+            const appEl = document.getElementById('app');
+            if (appEl) appEl.scrollTop = 0;
+            // --------------------------------
+
             document.body.className = 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 overflow-y-auto';
 
             const isSpecial = state.opinion.theme === 'special';
