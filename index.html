@@ -8,13 +8,16 @@
     <!-- Tailwind CSS (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap"
+        rel="stylesheet">
+
     <style>
         body {
             font-family: 'Inter', 'Noto Sans JP', sans-serif;
             background-color: #F8FAFC;
-            overscroll-behavior-y: none; /* スマホでのバウンススクロール防止 */
+            overscroll-behavior-y: none;
+            /* スマホでのバウンススクロール防止 */
         }
 
         /* スクロールバーのカスタマイズ */
@@ -22,9 +25,11 @@
             width: 6px;
             height: 6px;
         }
+
         .custom-scrollbar::-webkit-scrollbar-track {
             background: transparent;
         }
+
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #CBD5E1;
             border-radius: 10px;
@@ -37,27 +42,42 @@
             z-index: 10;
             opacity: 1 !important;
         }
+
         .theme-special .keyword-selected {
             box-shadow: 0 0 0 2px #F59E0B, 0 4px 6px -1px rgba(0, 0, 0, 0.5);
         }
 
         /* Drag & Drop Styles */
-        .dragging { opacity: 0.5; }
+        .dragging {
+            opacity: 0.5;
+        }
+
         .drag-over {
             border-color: #4F46E5 !important;
             background-color: #EEF2FF !important;
             transform: scale(1.01);
         }
+
         .theme-special .drag-over {
             border-color: #F59E0B !important;
             background-color: #451a03 !important;
         }
 
         /* アニメーション */
-        .fade-in { animation: fadeIn 0.4s ease-out; }
+        .fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* テーマ別スタイル */
@@ -66,6 +86,7 @@
             border: 1px solid #E2E8F0;
             color: #475569;
         }
+
         .theme-special .keyword-card {
             background-color: #1e293b;
             border: 1px solid #334155;
@@ -73,15 +94,21 @@
         }
 
         /* 強調表示 */
-        .em-red { color: #dc2626; font-weight: 900; }
-        .theme-special .em-red { color: #f87171; }
+        .em-red {
+            color: #dc2626;
+            font-weight: 900;
+        }
+
+        .theme-special .em-red {
+            color: #f87171;
+        }
 
         /* スマホ向け調整 */
         .tap-target {
             cursor: pointer;
             touch-action: manipulation;
         }
-        
+
         /* モバイル用レイアウト調整 */
         @media (max-width: 1024px) {
             .mobile-fixed-bottom {
@@ -89,12 +116,15 @@
                 bottom: 0;
                 left: 0;
                 right: 0;
-                height: 45vh; /* 下部45%をキーワードエリアに */
+                height: 45vh;
+                /* 下部45%をキーワードエリアに */
                 z-index: 50;
-                box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
             }
+
             .mobile-scroll-top {
-                height: 55vh; /* 上部55%をスロットエリアに */
+                height: 55vh;
+                /* 上部55%をスロットエリアに */
                 padding-bottom: 20px;
             }
         }
@@ -114,7 +144,7 @@
             { id: 2, name: "2. 監査意見", key: "opinion" },
             { id: 3, name: "3. 監査意見の根拠", key: "basis" },
             { id: 4, name: "4. 継続企業の前提(GC)", key: "gc" },
-            { id: 5, name: "5. KAM (主要な検討事項)", key: "kam" },
+            { id: 5, name: "5. KAM (主要な検討事項)<br><span style='font-size:0.75em; font-weight:normal; color:#1e293b; display:block; line-height:1.4; margin-top:2px;'>※上場会社は必須。＋その他金商法開示会社。<br>ただし、非上場会社で資本金＜5億円 or 売上高＜10億円 and 負債＜200億円 の会社を除く<br>＋任意報告する契約を行った会社</span>", key: "kam" },
             { id: 6, name: "6. その他の記載内容(OI)", key: "oi" },
             { id: 7, name: "7. 追記情報 (強調/その他)", key: "additional" },
             { id: 8, name: "8. 経営者及び監査役等の責任", key: "mgmt_resp" },
@@ -230,7 +260,8 @@
             trashItems: [],
             feedback: null,
             shuffledKeywords: [],
-            selectedKeywordId: null // 新規: タップ選択用
+            selectedKeywordId: null, // 新規: タップ選択用
+            isTrashMode: false // 新規: 除外BOXモード(モバイル用)
         };
 
         // --- ロジック ---
@@ -295,6 +326,42 @@
             render();
         }
 
+        // --- 除外BOX操作ロジック (New) ---
+        let lastTrashTap = 0;
+        function handleTrashBtnClick() {
+            // 1. キーワードが選択されている場合: 移動実行(モードによって方向が逆)
+            if (state.selectedKeywordId) {
+                if (state.isTrashMode) {
+                    // 除外BOX -> プールに戻す
+                    removeKeyword(state.selectedKeywordId);
+                } else {
+                    // プール/スロット -> 除外BOXへ
+                    moveKeyword(state.selectedKeywordId, 'trash');
+                }
+                state.selectedKeywordId = null;
+                // moveKeyword/removeKeyword 内でrenderされる
+                return;
+            }
+
+            // 2. 選択されていない場合: モード切替(ダブルタップ)
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTrashTap;
+            if (tapLength < 300 && tapLength > 0) {
+                // Double Tap: モード切替
+                state.isTrashMode = !state.isTrashMode;
+                state.selectedKeywordId = null;
+                render();
+            } else {
+                // Single Tap Visual Cue
+                const btn = document.getElementById('trash-btn');
+                if (btn) {
+                    btn.classList.add('animate-pulse', 'ring-2', 'ring-slate-300');
+                    setTimeout(() => btn.classList.remove('animate-pulse', 'ring-2', 'ring-slate-300'), 500);
+                }
+            }
+            lastTrashTap = currentTime;
+        }
+
         function handleSlotClick(targetType, targetKey) {
             if (!state.selectedKeywordId) return;
 
@@ -310,7 +377,7 @@
             e.target.classList.add('dragging');
             // ドラッグ開始時に選択状態もセット（ハイブリッド操作用）
             state.selectedKeywordId = id;
-            render(); 
+            render();
         }
 
         function handleDragEnd(e) {
@@ -439,18 +506,18 @@
         function createKeywordChip(kw, isFullText, isDraggable) {
             const div = document.createElement('div');
             const isSelected = state.selectedKeywordId === kw.id;
-            
+
             // Base classes
             let baseClass = `p-2 rounded-lg border text-xs font-normal shadow-sm mb-1 tap-target transition-all duration-100 select-none `;
-            
+
             // Theme & State classes
             if (document.body.classList.contains('theme-special')) {
-                baseClass += isSelected 
-                    ? `bg-slate-700 border-amber-500 ring-2 ring-amber-500 text-slate-100 z-10 scale-105 ` 
+                baseClass += isSelected
+                    ? `bg-slate-700 border-amber-500 ring-2 ring-amber-500 text-slate-100 z-10 scale-105 `
                     : `bg-slate-800 border-slate-600 text-slate-300 hover:border-amber-500 `;
             } else {
-                baseClass += isSelected 
-                    ? `bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500 text-indigo-900 z-10 scale-105 ` 
+                baseClass += isSelected
+                    ? `bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500 text-indigo-900 z-10 scale-105 `
                     : `bg-white border-slate-200 text-slate-600 hover:border-indigo-400 `;
             }
 
@@ -458,12 +525,26 @@
             div.innerHTML = isFullText ? kw.text : kw.shortText;
 
             // Events
+            let lastTap = 0;
             div.onclick = (e) => {
                 e.stopPropagation();
                 // 既に配置済みの場合は削除(プールに戻す)扱い、プールにある場合は選択扱い
                 const isPlaced = Object.values(state.placedItems).some(arr => arr.includes(kw.id)) || state.trashItems.includes(kw.id);
-                if(isPlaced) {
-                    removeKeyword(kw.id);
+
+                if (isPlaced) {
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTap;
+                    if (tapLength < 300 && tapLength > 0) {
+                        // Double Tap
+                        removeKeyword(kw.id);
+                        e.target.classList.remove('animate-pulse', 'ring-2', 'ring-rose-500'); // Remove visual cue
+                    } else {
+                        // Single Tap (Visual Cue)
+                        e.target.classList.add('animate-pulse', 'ring-2', 'ring-rose-500');
+                        setTimeout(() => e.target.classList.remove('animate-pulse', 'ring-2', 'ring-rose-500'), 1000);
+                        // Optional: Show toast or hint "Double tap to remove"
+                    }
+                    lastTap = currentTime;
                 } else {
                     handleKeywordClick(kw.id);
                 }
@@ -549,39 +630,32 @@
                             </button>
                         </header>
 
-                        <div class="flex-grow overflow-y-auto p-4 pt-2 space-y-3 custom-scrollbar" id="slots"></div>
+                        <div class="flex-grow overflow-y-auto p-4 pt-2 space-y-3 custom-scrollbar pb-48" id="slots"></div>
                     </div>
                     
                     <!-- Bottom Area: Keywords + Trash (Mobile: Fixed 45%, Desktop: Right Half) -->
                     <div class="w-full lg:w-1/2 flex flex-col lg:h-full mobile-fixed-bottom lg:static lg:p-4 lg:pl-0">
-                        
-                        <!-- Keywords Pool -->
-                        <div class="flex-grow rounded-t-3xl lg:rounded-3xl p-4 lg:p-6 border-t lg:border shadow-[0_-4px_20px_rgba(0,0,0,0.1)] lg:shadow-sm flex flex-col overflow-hidden relative z-30 transition-all ${kwContainerClass}">
+                        <div class="flex items-center justify-between px-4 py-2 bg-inherit border-b border-slate-200/10 z-20" data-mode="${state.isTrashMode ? 'trash' : 'pool'}">
+                            <h3 class="font-bold text-xs uppercase tracking-wider opacity-70 flex items-center gap-2">
+                                ${state.isTrashMode ? '除外ボックス (Trash)' : '選択肢 (Keywords)'}
+                                <span class="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">${state.isTrashMode ? state.trashItems.length : KEYWORD_POOL.filter(k => !state.trashItems.includes(k.id) && !Object.values(state.placedItems).flat().includes(k.id)).length}</span>
+                            </h3>
                             
-                            <!-- Tab/Handle for mobile visual -->
-                            <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 lg:hidden opacity-50"></div>
-
-                            <div class="flex items-center justify-between mb-2 shrink-0">
-                                <h2 class="text-[10px] font-black uppercase tracking-widest ${isSpecial ? 'text-slate-500' : 'text-slate-400'}">
-                                    ${state.selectedKeywordId ? '<span class="text-indigo-500 animate-pulse">配置先をタップしてください</span>' : 'キーワードプール (タップで選択)'}
-                                </h2>
-                                <!-- Trash Icon as Drop Target for Keywords -->
-                                <div id="trash-box-mini" class="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border border-dashed transition-colors cursor-pointer ${isSpecial ? 'text-slate-500 border-slate-600 hover:text-rose-400' : 'text-slate-400 border-slate-300 hover:text-rose-500'}">
-                                    ${icons.trash} 除外BOXへ
-                                </div>
+                            <div class="relative">
+                                <button id="trash-btn" onclick="handleTrashBtnClick()" class="p-2 rounded-full transition-colors flex items-center gap-2 px-4 shadow-sm border
+                                    ${state.isTrashMode
+                    ? 'bg-blue-100 text-blue-600 border-blue-200'
+                    : (state.selectedKeywordId ? 'bg-red-100 text-red-600 border-red-200 animate-pulse' : 'bg-slate-100 text-slate-500 border-slate-200')}">
+                                    ${state.isTrashMode ? icons.rotate : icons.trash}
+                                    <span class="text-[10px] font-bold">${state.isTrashMode ? (state.selectedKeywordId ? 'プールへ戻す' : 'プールへ(D-Tap)') : (state.selectedKeywordId ? '除外する' : '除外BOX(D-Tap)')}</span>
+                                </button>
                             </div>
-
-                            <div class="flex flex-wrap gap-2 overflow-y-auto pr-2 custom-scrollbar content-start h-full pb-10 lg:pb-0" id="keywords"></div>
                         </div>
 
-                        <!-- Full Trash Box (Hidden on mobile mostly, simplified above) -->
-                        <div id="trash-box-full" class="hidden lg:flex h-1/3 mt-4 shrink-0 rounded-2xl border-2 border-dashed p-4 transition-all flex-wrap gap-2 content-start overflow-y-auto custom-scrollbar ${isSpecial ? 'border-slate-700 bg-black/20 text-slate-500 hover:border-rose-900' : 'border-slate-300 bg-slate-50 text-slate-400 hover:border-rose-300'}">
-                             <div class="w-full text-[10px] font-black uppercase tracking-widest mb-2 flex items-center justify-between sticky top-0 bg-inherit z-10 pb-2 border-b border-inherit">
-                                <span>${icons.trash} 除外ボックス</span>
-                            </div>
-                            <div id="trash-content" class="w-full flex flex-wrap gap-2 pt-2"></div>
+                        <!-- Grid -->
+                        <div class="flex-grow overflow-y-auto p-2 bg-slate-50/50 inner-shadow custom-scrollbar relative">
+                             <div id="keywords-grid" class="flex flex-wrap gap-2 content-start pb-20 justify-center"></div>
                         </div>
-
                     </div>
                 </div>
             `;
@@ -608,12 +682,12 @@
                 const slotBaseClass = isSpecial
                     ? 'bg-slate-900 border-slate-700'
                     : 'bg-white border-slate-200';
-                
+
                 // Highlight slot if item is selected
                 let activeClass = "";
                 if (state.selectedKeywordId && !isRemoved) {
-                    activeClass = isSpecial 
-                        ? "ring-2 ring-indigo-500 border-transparent bg-slate-800" 
+                    activeClass = isSpecial
+                        ? "ring-2 ring-indigo-500 border-transparent bg-slate-800"
                         : "ring-2 ring-indigo-400 border-transparent bg-indigo-50";
                 }
 
@@ -632,8 +706,8 @@
                         contentHTML = `<div class="w-full text-center text-[10px] opacity-50 mt-2">※この類型では削除</div>`;
                     }
                 } else if (placedIds.length === 0) {
-                    const guideText = state.selectedKeywordId 
-                        ? `<span class="text-indigo-500 font-bold animate-pulse">ここをタップして配置</span>` 
+                    const guideText = state.selectedKeywordId
+                        ? `<span class="text-indigo-500 font-bold animate-pulse">ここをタップして配置</span>`
                         : `キーワードを配置`;
                     contentHTML = `<div class="w-full text-center text-[10px] opacity-40 mt-2 italic">${guideText}</div>`;
                 }
@@ -643,10 +717,10 @@
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-[10px] font-black uppercase tracking-widest ${isSpecial ? 'text-slate-500' : 'text-slate-400'}">${cat.name}</span>
                             ${isRemoved
-                                ? (isSpecial && cat.key === 'gc'
-                                    ? '<span class="text-[9px] font-black text-rose-500 bg-rose-50/10 px-2 py-0.5 rounded-full border border-rose-500/20">原則不要</span>'
-                                    : '<span class="text-[9px] font-black text-rose-500 bg-rose-50/10 px-2 py-0.5 rounded-full border border-rose-500/20">不要区分</span>')
-                                : ''}
+                        ? (isSpecial && cat.key === 'gc'
+                            ? '<span class="text-[9px] font-black text-rose-500 bg-rose-50/10 px-2 py-0.5 rounded-full border border-rose-500/20">原則不要</span>'
+                            : '<span class="text-[9px] font-black text-rose-500 bg-rose-50/10 px-2 py-0.5 rounded-full border border-rose-500/20">不要区分</span>')
+                        : ''}
                         </div>
                         <div class="flex flex-col gap-2" id="slot-content-${cat.key}">
                              ${contentHTML}
@@ -660,68 +734,56 @@
                     const contentArea = slot.querySelector(`#slot-content-${cat.key}`);
                     placedIds.forEach(id => {
                         const kw = KEYWORD_POOL.find(k => k.id === id);
+                        // Slot cards slightly simpler?
                         const card = createKeywordChip(kw, true, true);
                         contentArea.appendChild(card);
                     });
                 }
             });
 
-            // === 2. Render Trash (Mini & Full) ===
-            // Mini Trash (Mobile/Header of Keywords)
-            const trashMini = el.querySelector('#trash-box-mini');
-            trashMini.onclick = () => {
-                if(state.selectedKeywordId) handleSlotClick('trash', null);
-                else {
-                    // Show trash content modal or alert if empty? 
-                    // For now, let's just make it a drop zone for desktop mostly and tap target for mobile
-                }
-            };
-            trashMini.ondragover = (e) => handleDragOver(e);
-            trashMini.ondragleave = (e) => handleDragLeave(e);
-            trashMini.ondrop = (e) => handleDrop(e, 'trash', null);
-            // Highlight if selected
-            if(state.selectedKeywordId) {
-                trashMini.classList.add('ring-2', 'ring-rose-400', 'bg-rose-50', 'text-rose-600');
-            }
+            // === 2. Render Grid (Pool or Trash) ===
+            const grid = el.querySelector('#keywords-grid');
 
-            // Full Trash (Desktop)
-            const trashBoxFull = el.querySelector('#trash-box-full');
-            if (trashBoxFull) {
-                trashBoxFull.ondragover = (e) => handleDragOver(e);
-                trashBoxFull.ondragleave = (e) => handleDragLeave(e);
-                trashBoxFull.ondrop = (e) => handleDrop(e, 'trash', null);
-                const trashContent = el.querySelector('#trash-content');
-                
-                state.trashItems.forEach(id => {
-                    const kw = KEYWORD_POOL.find(k => k.id === id);
-                    const card = createKeywordChip(kw, false, true);
-                    card.classList.add('opacity-70');
-                    trashContent.appendChild(card);
+            // Drop target logic (If drag dropping back to grid)
+            // If Trash Mode: dropping here -> Add to Trash
+            // If Pool Mode: dropping here -> Return to Pool
+            const targetType = state.isTrashMode ? 'trash' : 'pool';
+            grid.parentElement.ondragover = (e) => handleDragOver(e);
+            grid.parentElement.ondragleave = (e) => handleDragLeave(e);
+            grid.parentElement.ondrop = (e) => handleDrop(e, targetType, null);
+
+            let itemsToRender = [];
+            if (state.isTrashMode) {
+                // Show Trash Items
+                itemsToRender = state.trashItems.map(id => KEYWORD_POOL.find(k => k.id === id));
+                if (itemsToRender.length === 0) {
+                    grid.innerHTML = `<div class="w-full text-center text-[10px] text-slate-400 py-10">除外ボックスは空です</div>`;
+                }
+            } else {
+                // Show Pool Items
+                itemsToRender = state.shuffledKeywords.filter(kw => {
+                    const isPlacedInSlot = Object.values(state.placedItems).some(arr => arr.includes(kw.id));
+                    const isInTrash = state.trashItems.includes(kw.id);
+                    return !isPlacedInSlot && !isInTrash;
                 });
+                if (itemsToRender.length === 0) {
+                    grid.innerHTML = `<div class="w-full text-center text-[10px] text-slate-400 py-10">全て配置済みです</div>`;
+                }
             }
 
-            // === 3. Render Keyword Pool ===
-            const keywordContainer = el.querySelector('#keywords');
-            // Drop back to pool
-            keywordContainer.ondragover = (e) => handleDragOver(e);
-            keywordContainer.ondragleave = (e) => handleDragLeave(e);
-            keywordContainer.ondrop = (e) => handleDrop(e, 'pool', null);
-            
-            state.shuffledKeywords.forEach(kw => {
-                // Check if placed anywhere
-                const isPlacedInSlot = Object.values(state.placedItems).some(arr => arr.includes(kw.id));
-                const isInTrash = state.trashItems.includes(kw.id);
-
-                if (!isPlacedInSlot && !isInTrash) {
-                    const card = createKeywordChip(kw, false, true);
-                    keywordContainer.appendChild(card);
+            itemsToRender.forEach(kw => {
+                if (!kw) return;
+                const card = createKeywordChip(kw, false, true);
+                if (state.isTrashMode) {
+                    card.classList.add('opacity-80');
                 }
+                grid.appendChild(card);
             });
         }
 
         function renderResult(el) {
             document.body.className = 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 overflow-y-auto';
-            
+
             const isSpecial = state.opinion.theme === 'special';
             const pct = Math.round((state.feedback.score / state.feedback.total) * 100);
 
@@ -782,7 +844,7 @@
 
                 // --- User Slot ---
                 const userSlot = document.createElement('div');
-                let userStyle = res.correct 
+                let userStyle = res.correct
                     ? (isSpecial ? 'bg-emerald-900/30 border-emerald-800 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-800')
                     : (isSpecial ? 'bg-rose-900/30 border-rose-800 text-rose-400' : 'bg-rose-50 border-rose-200 text-rose-800');
 
@@ -899,4 +961,5 @@
         render();
     </script>
 </body>
+
 </html>
