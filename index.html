@@ -554,6 +554,7 @@
 
         // --- 画面描画 ---
         function renderSelect(el) {
+            window.scrollTo(0, 0); // リセット
             document.body.className = 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 overflow-y-auto';
             el.innerHTML = `
                 <div class="min-h-screen flex items-center justify-center p-4 md:p-6 fade-in">
@@ -590,6 +591,7 @@
         }
 
         function renderGame(el) {
+            window.scrollTo(0, 0); // リセット: スクロール位置
             const isSpecial = state.opinion.theme === 'special';
 
             // Re-apply body classes for Game Mode (important when returning from Result screen)
