@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>監査報告書マスター (Mobile & Desktop)</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            background-color: #F8FAFC;
+            overscroll-behavior-y: none; /* スマホでのバウンススクロール防止 */
+        }
+
+        /* スクロールバーのカスタマイズ */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 10px;
+        }
+
+        /* 選択状態のスタイル */
+        .keyword-selected {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 2px #4F46E5, 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+            opacity: 1 !important;
+        }
+        .theme-special .keyword-selected {
+            box-shadow: 0 0 0 2px #F59E0B, 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Drag & Drop Styles */
+        .dragging { opacity: 0.5; }
+        .drag-over {
+            border-color: #4F46E5 !important;
+            background-color: #EEF2FF !important;
+            transform: scale(1.01);
+        }
+        .theme-special .drag-over {
+            border-color: #F59E0B !important;
+            background-color: #451a03 !important;
+        }
+
+        /* アニメーション */
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* テーマ別スタイル */
+        .theme-core .keyword-card {
+            background-color: white;
+            border: 1px solid #E2E8F0;
+            color: #475569;
+        }
+        .theme-special .keyword-card {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+        }
+
+        /* 強調表示 */
+        .em-red { color: #dc2626; font-weight: 900; }
+        .theme-special .em-red { color: #f87171; }
+
+        /* スマホ向け調整 */
+        .tap-target {
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        
+        /* モバイル用レイアウト調整 */
+        @media (max-width: 1024px) {
+            .mobile-fixed-bottom {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 45vh; /* 下部45%をキーワードエリアに */
+                z-index: 50;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            }
+            .mobile-scroll-top {
+                height: 55vh; /* 上部55%をスロットエリアに */
+                padding-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body class="text-slate-900 overflow-hidden transition-colors duration-500 h-[100dvh]">
+
+    <div id="app" class="h-full flex flex-col transition-colors duration-500">
+        <!-- JSで動的にコンテンツが挿入されます -->
+    </div>
+
+    <script>
+        // --- データ定義 (data.jsの内容) ---
+        const CATEGORIES = [
+            { id: 1, name: "1. 宛先・名称・日付", key: "header" },
+            { id: 2, name: "2. 監査意見", key: "opinion" },
+            { id: 3, name: "3. 監査意見の根拠", key: "basis" },
+            { id: 4, name: "4. 継続企業の前提(GC)", key: "gc" },
+            { id: 5, name: "5. KAM (主要な検討事項)", key: "kam" },
+            { id: 6, name: "6. その他の記載内容(OI)", key: "oi" },
+            { id: 7, name: "7. 追記情報 (強調/その他)", key: "additional" },
+            { id: 8, name: "8. 経営者及び監査役等の責任", key: "mgmt_resp" },
+            { id: 9, name: "9. 監査人の責任", key: "auditor_resp" },
+            { id: 10, name: "10. 利害関係", key: "interest" }
+        ];
+
+        const OPINION_TYPES = [
+            { id: 'unmodified', name: '無限定適正意見', color: 'bg-blue-600', hover: 'hover:bg-blue-50', border: 'border-blue-200', theme: 'core' },
+            { id: 'qualified_mist', name: '限定付適正意見（虚偽表示）', color: 'bg-amber-600', hover: 'hover:bg-amber-50', border: 'border-amber-200', theme: 'core' },
+            { id: 'qualified_scope', name: '限定付適正意見（範囲制約）', color: 'bg-amber-600', hover: 'hover:bg-amber-50', border: 'border-amber-200', theme: 'core' },
+            { id: 'adverse', name: '不適正意見', color: 'bg-red-600', hover: 'hover:bg-red-50', border: 'border-red-200', theme: 'core' },
+            { id: 'disclaimer', name: '意見不表明', color: 'bg-stone-800', hover: 'hover:bg-stone-50', border: 'border-stone-200', theme: 'special' }
+        ];
+
+        const icons = {
+            book: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>',
+            arrowRight: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>',
+            chevronLeft: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>',
+            check: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+            trash: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>',
+            rotate: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>',
+            handClick: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path></svg>'
+        };
+
+        const KEYWORD_POOL = [
+            // 1. Header
+            { id: 'k1-1', text: '<b>表題：</b><br><span class="em-red">独立監査人</span>の監査報告書', shortText: '表題', cat: 'header' },
+            { id: 'k1-2', text: '<b>宛先：</b><br>取締役会（代表取締役、監査役会、監査等委員会…etc)', shortText: '宛先', cat: 'header' },
+            { id: 'k1-3', text: '<b>監査報告書日：</b><br>〇年〇月〇日', shortText: '監査報告書日', cat: 'header' },
+            { id: 'k1-4', text: '<b>事務所所在地：</b><br>国内：責任者執務事業所都市名 or 登記事業所名<br>海外：責任者執務事業所都市名 and 国名', shortText: '事務所所在地', cat: 'header' },
+            { id: 'k1-5', text: '<b>監査人の署名：</b><br>指定社員 業務執行社員　〇〇 〇〇', shortText: '監査人の署名', cat: 'header' },
+
+            // 2. Opinion
+            { id: 'k2-1', text: '<b>監査の対象に関する記載:</b><br>当監査法人は，<span class="em-red">金融商品取引法第 193 条の２第１項</span>の規定に基づく監査証明を行うため，<span class="em-red">「経理の状況」に掲げられている</span>○○株式会社の×年×月×日から×年×月×日までの連結会計年度の<span class="em-red">連結財務諸表</span>，すなわち連結貸借対照表，連結損益計算書，連結包括利益計算書，連結株主資本等変動計算書，連結キャッシュ・フロー計算書，連結財務諸表作成のための基本となる重要な事項，その他の注記及び連結附属明細表<span class="em-red">について監査を行った。</span>', shortText: '監査の対象に関する記載', cat: 'opinion', exclude: ['disclaimer'] },
+            { id: 'k2-2', text: '<b>適用される財務報告の枠組みに準拠：</b><br>当監査法人は，上記の連結財務諸表が，<span class="em-red">我が国において一般に公正妥当と認められる企業会計の基準に準拠して</span>', shortText: '適用される財務報告の枠組みに準拠', cat: 'opinion', exclude: ['disclaimer'] },
+            { id: 'k2-3', text: '<b>全ての重要な点において適正に表示：</b><br>○○株式会社及び連結子会社の×年×月×日現在の<span class="em-red">財政状態</span>並びに同日をもって終了する 連結会計年度の<span class="em-red">経営成績</span>及び<span class="em-red">キャッシュ・フローの状況</span>を，<span class="em-red">全ての重要な点において適正に表示</span>しているものと認める。', shortText: '全ての重要な点において適正に表示', cat: 'opinion', only: ['unmodified'] },
+            { id: 'k2-4', text: '<b>除外事項の影響を除き、全ての重要な点において適正に表示している：</b><br>当監査法人は，上記の連結財務諸表が，「限定付適正意見の根拠」に記載した事項の連結財務諸表に及ぼす影響<span class="em-red">を除き</span>，・・・・・・・・・（無限定適正意見と同じであるため省略）・・・・・・・・・の状況を，全ての重要な点において適正に表示しているものと認める。', shortText: '除外事項の影響を除き、全ての重要な点において適正に表示している', cat: 'opinion', only: ['qualified_mist'] },
+            { id: 'k2-5', text: '<b>可能性のある影響を除き全ての重要な点において適正に表示している：</b><br>当監査法人は，上記の連結財務諸表が，「限定付適正意見の根拠」に記載した事項の連結財務諸表に及ぼす<span class="em-red">可能性のある</span>影響を除き，・・・・・・・・・（無限定適正意見と同じであるため省略）・・・・・・・・・の状況を，全ての重要な点において適正に表示しているものと認める。', shortText: '可能性のある影響を除き全ての重要な点において適正に表示している', cat: 'opinion', only: ['qualified_scope'] },
+            { id: 'k2-6', text: '<b>重要性に鑑み，適正に表示していないものと認める：</b><br>当監査法人は，上記の連結財務諸表が，「不適正意見の根拠」に記載した事項の連結財務諸表に及ぼす影響<span class="em-red">の重要性に鑑み</span>，・・・・・・・・・（無限定適正意見と同じであるため省略）・・・・・・・・・の状況を，適正に表示していないものと認める。', shortText: '重要性に鑑み，適正に表示していないものと認める', cat: 'opinion', only: ['adverse'] },
+            { id: 'k2-7', text: '<b>及ぼす可能性のある影響の重要性に鑑み意見を表明しない：</b><br>当監査法人は，「意見不表明の根拠」に記載した事項の連結財務諸表に及ぼす<span class="em-red">可能性のある</span>影響の<span class="em-red">重要性に鑑み</span>，連結財務諸表に対する意見表明の基礎となる十分かつ適切な監査証拠を入手することができなかったため，監査意見を表明しない', shortText: '及ぼす可能性のある影響の重要性に鑑み意見を表明しない', cat: 'opinion', only: ['disclaimer'] },
+
+            // 3. Basis
+            { id: 'k3-1', text: '<b>除外した不適切な事項：</b><br>会社は，貸借対照表上の棚卸資産を，取得原価と正味売却価額のうちいずれか低い方の価額ではなく，取得原価である×××で計上しているが，これは，一般に公正妥当と認められる企業会計の基準に準拠していない。', shortText: '除外した不適切な事項', cat: 'basis', only: ['qualified_mist'] },
+            { id: 'k3-2', text: '<b>財務諸表に与えている影響：</b><br>棚卸資産を取得原価と正味売却価額のうちいずれか低い方の価額で評価していたならば，棚卸資産を正味売却価額まで△△△切り下げることが必要であった。この結果，営業利益，経常利益及び税引前当期純利益はそれぞれ△△△過大に，当期純利益及び純資産は〇〇〇過大に表示されている。<span class="em-red">この影響は・・・・・である。</span>', shortText: '財務諸表に与えている影響', cat: 'basis', only: ['qualified_mist'] },
+            { id: 'k3-3', text: '<b>除外事項を付した限定付適正意見とした理由（意見に関する除外）：</b><br>したがって，<span class="em-red">財務諸表に及ぼす影響は重要であるが広範ではない。</span>', shortText: '除外事項を付した限定付適正意見とした理由（意見に関する除外）', cat: 'basis', only: ['qualified_mist'] },
+            { id: 'k3-4', text: '<b>財務諸表が不適正であるとした理由：</b><br>注記Ｘに記載されているとおり，会社は，×年×月に〇〇株式会社の支配を獲得したが，支配獲得日において〇〇株式会社が保有する重要な資産及び負債の一部の時価を確定することができないことを理由に，子会社〇〇株式会社を連結の範囲に含めていない。そのため，当該投資は連結貸借対照表上，取得原価により計上されているが，我が国において一般に公正妥当と認められる企業会計の基準に準拠していれば，会社は当該子会社を連結し，また，暫定金額に基づいて当該取得を会計処理しなければならない。〇〇株式会社を連結の範囲に含めた場合，連結財務諸表上，多岐にわたり重要な影響を及ぼすため，〇〇株式会社を連結の範囲に含めなかったことによる影響金額を算定できなかった。', shortText: '財務諸表が不適正であるとした理由', cat: 'basis', only: ['adverse'] },
+            { id: 'k3-5', text: '<b>実施できなかった監査手続：</b><br>会社は，当連結会計年度中にＸＹＺ社の株式を取得し，在外関連会社として当該会社の投資に対し持分法を適用している。ＸＹＺ社に対する投資は，×年12月31日現在の連結貸借対照表上×××で計上され，ＸＹＺ社の当期純利益のうち会社の持分相当額である△△△が，同日に終了した連結会計年度の会社の当期純利益に含まれている。当監査法人は，ＸＹＺ社の財務情報を入手することができず，また，ＸＹＺ社の経営者及び監査人とのコミュニケーションが認められなかったため，ＸＹＺ社に対する×年12月31日現在の会社の持分法による投資簿価及び同日に終了した連結会計年度の当期純利益のうち関連する持分法投資利益について，十分かつ適切な監査証拠を入手することができなかった。', shortText: '実施できなかった監査手続', cat: 'basis', only: ['qualified_scope'] },
+            { id: 'k3-6', text: '<b>監査手続が実施できなかった事実が影響する事項：</b><br>したがって，当監査法人は，これらの金額に修正が必要となるかどうかについて判断することができなかった。<span class="em-red">この影響は・・・・・・である。</span>', shortText: '監査手続が実施できなかった事実が影響する事項', cat: 'basis', only: ['qualified_scope'] },
+            { id: 'k3-7', text: '<b>除外事項を付した限定付適正意見とした理由（範囲制約）：</b><br>したがって，<span class="em-red">連結財務諸表に及ぼす可能性のある影響は重要であるが広範ではない。</span>', shortText: '除外事項を付した限定付適正意見とした理由（範囲制約）', cat: 'basis', only: ['qualified_scope'] },
+            { id: 'k3-8', text: '<b>一般に公正妥当と認められる監査の基準に準拠して監査を行ったこと：</b><br>当監査法人は，我が国において一般に公正妥当と認められる<span class="em-red">監査の基準に準拠して監査を行った。</span>', shortText: '一般に公正妥当と認められる監査の基準に準拠して監査を行ったこと', cat: 'basis', exclude: ['disclaimer'] },
+            { id: 'k3-9', text: '<b>監査人の責任は責任区分を参照すること：</b><br>監査の基準における当監査法人の責任は，「連結財務諸表監査における監査人の責任」に記載されている。', shortText: '監査人の責任は責任区分を参照すること', cat: 'basis', exclude: ['disclaimer'] },
+            { id: 'k3-10', text: '<b>職業倫理・独立性を順守していること：</b><br>当監査法人は，我が国における<span class="em-red">職業倫理に関する規定</span>（特定の事業体の財務諸表監査に特有の独立性に関する規定が適用される場合には，当該独立性に関する規定を含む。）<span class="em-red">に従って，会社及び連結子会社から独立</span>しており，また，監査人としての<span class="em-red">その他の倫理上の責任を果たしている。</span>', shortText: '職業倫理・独立性を順守していること', cat: 'basis', exclude: ['disclaimer'] },
+            { id: 'k3-11', text: '<b>監査証拠の十分性・適切性を確保したこと：</b><br>当監査法人は，<span class="em-red">意見表明の基礎となる十分かつ適切な監査証拠を入手した</span>と判断している。', shortText: '監査証拠の十分性・適切性を確保したこと', cat: 'basis', exclude: ['disclaimer'] },
+            { id: 'k3-12', text: '<b>意見を表明しない理由：</b><br>会社の共同支配企業ＸＹＺ社に対する投資は，会社の連結貸借対照表上×××百万円で計上されており，これは，×年12月31日現在の会社の純資産の90％超に相当する。当監査法人は，ＸＹＺ社の経営者及び監査人とのコミュニケーションが認められず，また，ＸＹＺ社の監査人の監査調書の閲覧も認められなかった。その結果，当監査法人は，共同支配企業であるＸＹＺ社の資産，負債及び損益に係る持分相当額，並びに連結株主資本等変動計算書と連結キャッシュ・フロー計算書を構成する数値に修正が必要となるか否かについて判断することができなかった。', shortText: '意見を表明しない理由', cat: 'basis', only: ['disclaimer'] },
+
+            // 4. GC
+            { id: 'k4-1', text: '<b>継続企業の前提に関する重要な不確実性が認められる旨<br>当該事項は監査人の意見に影響を及ぼすものではない旨：</b><br>継続企業の前提に関する注記に記載されているとおり，会社は，×年４月１日から×年３月31日までの事業年度に純損失××百万円を計上しており，×年３月31日現在において○○百万円の債務超過の状況にあることから，継続企業の前提に<span class="em-red">重要な疑義を生じさせるような事象又は状況</span>が存在しており，現時点では<span class="em-red">継続企業の前提に関する重要な不確実性</span>が認められる。なお，当該事象又は状況に対する対応策及び重要な不確実性が認められる理由については当該注記に記載されている。財務諸表は継続企業を前提として作成されており，このような重要な不確実性の影響は財務諸表に反映されていない。<br><span class="em-red">当該事項は，当監査法人の意見に影響を及ぼすものではない。</span>', shortText: '継続企業の前提に関する重要な不確実性が認められる旨<br>当該事項は監査人の意見に影響を及ぼすものではない旨', cat: 'gc', exclude: ['disclaimer'] },
+            { id: 'k4-2', text: '<b>重要な不確実性の存在が，利用者が財務諸表を理解する基礎として重要であること<br>継続企業の前提に関する評価についての監査上の対応：</b><br>（文例なし、補足のために任意記載）', shortText: '重要な不確実性の存在が，利用者が財務諸表を理解する基礎として重要であること<br>継続企業の前提に関する評価についての監査上の対応', cat: 'gc', exclude: ['disclaimer'] },
+
+            // 5. KAM
+            { id: 'k5-1', text: '<b>KAMは監査人が職業的専門家として特に重要であると判断した事項である：</b><br>監査上の主要な検討事項とは，当連結会計年度の連結財務諸表の監査において，監査人が<span class="em-red">職業的専門家として特に重要であると判断</span>した事項である。', shortText: 'KAMは監査人が職業的専門家として特に重要であると判断した事項である', cat: 'kam', exclude: ['disclaimer'] },
+            { id: 'k5-2', text: '<b>KAMは個別に意見を表明するものではない：</b><br>監査上の主要な検討事項は，連結財務諸表全体に対する監査の実施過程及び監査意見の形成において対応した事項であり，当監査法人は，当該事項に対して<span class="em-red">個別に意見を表明するものではない。</span>', shortText: 'KAMは個別に意見を表明するものではない', cat: 'kam', exclude: ['disclaimer'] },
+            { id: 'k5-3', text: '<b>個々の監査上の主要な検討事項：</b><br>・関連する財務諸表における注記事項がある場合は，当該<span class="em-red">注記事項への参照</span><br>・個々の監査上の主要な検討事項の<span class="em-red">内容</span><br>・財務諸表監査において特に重要であるため，当該事項を監査上の主要な検討事項に決定した<span class="em-red">理由</span><br>・当該事項に対する<span class="em-red">監査上の対応</span>', shortText: '個々の監査上の主要な検討事項', cat: 'kam', exclude: ['disclaimer'] },
+
+            // 6. OI
+            { id: 'k6-1', text: '<b>その他の記載内容の特定：</b><br>その他の記載内容は，［対象となる報告書の名称］に含まれる情報のうち，財務諸表及びその監査報告書<span class="em-red">以外の情報</span>である。', shortText: 'その他の記載内容の特定', cat: 'oi', exclude: ['disclaimer'] },
+            { id: 'k6-2', text: '<b>その他の記載内容に対する経営者の責任及び監査役等の責任：</b><br><span class="em-red">経営者の責任</span>は，<span class="em-red">その他の記載内容を作成し開示</span>することにある。また，<span class="em-red">監査役及び監査役会の責任</span>は，その他の記載内容の報告プロセスの整備及び運用における取締役の職務の執行を<span class="em-red">監視</span>することにある。', shortText: 'その他の記載内容に対する経営者の責任及び監査役等の責任', cat: 'oi', exclude: ['disclaimer'] },
+            { id: 'k6-3', text: '<b>監査意見の対象にはその他の記載内容は含まれておらず，監査人は意見を表明するものではなく，また，表明する予定もない旨：</b><br>当監査法人の財務諸表に対する監査意見の対象にはその他の記載内容は含まれておらず，当監査法人は<span class="em-red">その他の記載内容に対して意見を表明するものではない</span>。', shortText: '監査意見の対象にはその他の記載内容は含まれておらず，監査人は意見を表明するものではなく，また，表明する予定もない旨', cat: 'oi', exclude: ['disclaimer'] },
+            { id: 'k6-4', text: '<b>その他の記載内容の通読，検討及び報告に関する監査人の責任：</b><br>財務諸表監査における当監査法人の責任は，その他の記載内容を<span class="em-red">通読</span>し，通読の過程において，その他の記載内容と財務諸表又は当監査法人が監査の過程で得た知識との間に重要な相違があるかどうか<span class="em-red">検討</span>すること，また，そのような重要な相違以外にその他の記載内容に重要な誤りの兆候があるかどうか注意を払うことにある。<br>当監査法人は，実施した作業に基づき，その他の記載内容に重要な誤りがあると判断した場合には，その事実を<span class="em-red">報告</span>することが求められている。', shortText: 'その他の記載内容の通読，検討及び報告に関する監査人の責任', cat: 'oi', exclude: ['disclaimer'] },
+            { id: 'k6-5', text: '<b>監査報告書日以前に入手したその他の記載内容がある場合：</b><br>⇒重要な誤りがない場合：監査人が<span class="em-red">報告すべき事項はない</span><br>⇒重要な誤りがある場合：未修正の<span class="em-red">重要な誤りの内容</span>', shortText: '監査報告書日以前に入手したその他の記載内容がある場合', cat: 'oi', exclude: ['disclaimer'] },
+            { id: 'k6-6', text: '<b>その他の記載内容が存在しない場合：</b><br>その他の記載内容が<span class="em-red">存在しないと判断した</span>旨。<br>その他の記載内容に対して<span class="em-red">いかなる作業も実施していない</span>旨。', shortText: 'その他の記載内容が存在しない場合', cat: 'oi', exclude: ['disclaimer'] },
+
+            // 7. Additional
+            { id: 'k7-1', text: '<b>（例）正当な理由による会計方針の変更 ：</b><br>会計方針の変更に記載されているとおり，会社は商品及び製品の<span class="em-red">評価方法を総平均法から先入先出法に変更している</span>。<br><span class="em-red">当該事項は，当監査法人の意見に影響を及ぼすものではない。</span>', shortText: '（例）正当な理由による会計方針の変更', cat: 'additional' },
+            { id: 'k7-2', text: '<b>（例）重要な偶発事象：</b><br>注記事項（連結貸借対照表関係）に記載されているとおり，会社は特許権の侵害に関する損害賠償請求訴訟の被告となっている。当該訴訟の最終的な結論は現在のところ得られていないため，その判決により生ずるかもしれない負担金額については連結財務諸表に計上されていない。<br><span class="em-red">当該事項は，当監査法人の意見に影響を及ぼすものではない。</span>', shortText: '（例）重要な偶発事象', cat: 'additional' },
+            { id: 'k7-3', text: '<b>（例）重要な後発事象（開示後発事象）：</b><br>重要な後発事象に記載されているとおり，会社は×年×月×日Ａ社との合併契約書を締結した。<br><span class="em-red">当該事項は，当監査法人の意見に影響を及ぼすものではない。</span>', shortText: '（例）重要な後発事象', cat: 'additional' },
+            { id: 'k7-4', text: '<b>（例）事後判明事実Ⅱ：</b><br>有価証券報告書の訂正報告書の提出理由に記載されているとおり，会社は，連結財務諸表を訂正している。なお，当監査法人は，訂正前の連結財務諸表に対して平成×年×月×日に監査報告書を提出した。', shortText: '（例）事後判明事実Ⅱ', cat: 'additional' },
+
+            // 8. Mgmt Resp
+            { id: 'k8-1', text: '<b>財務諸表の作成責任：</b><br>経営者の責任は，一般に公正妥当と認められる企業会計の基準に準拠して<span class="em-red">連結財務諸表を作成し適正 に表示すること</span>にある。', shortText: '財務諸表の作成責任', cat: 'mgmt_resp' },
+            { id: 'k8-2', text: '<b>内部統制の整備運用責任：</b><br>これには，不正又は誤謬による重要な虚偽表示のない<span class="em-red">連結財務諸表を作成し適正に表示するために</span>経営者が必要と判断した<span class="em-red">内部統制を整備及び運用することが含まれる</span>。', shortText: '内部統制の整備運用責任', cat: 'mgmt_resp' },
+            { id: 'k8-3', text: '<b>継続企業の前提の評価・開示を行う責任：</b><br>連結財務諸表を作成するに当たり，経営者は，<span class="em-red">継続企業の前提</span>に基づき連結財務諸表を作成することが適切であるかどうか<span class="em-red">を評価</span>し，一般に公正妥当と認められる企業会計の基準に基づいて<span class="em-red">継続企業に関する事項</span>を<span class="em-red">開示する必要がある場合には</span>当該事項を<span class="em-red">開示する責任</span>がある。', shortText: '継続企業の前提の評価・開示を行う責任', cat: 'mgmt_resp' },
+            { id: 'k8-4', text: '<b>財務報告プロセスを監視する責任：</b><br>監査役等の責任は，財務報告プロセスの整備及び運用における執行役及び取締役の<span class="em-red">職務の執行を監視</span>することにある。', shortText: '財務報告プロセスを監視する責任', cat: 'mgmt_resp' },
+
+            // 9. Auditor Resp
+            { id: 'k9-1', text: '<b>監査の基準は合理的な保証を得ることを求めている：</b><br>監査人の責任は，監査人が実施した監査に基づいて，全体としての連結財務諸表に不正又は誤謬による<span class="em-red">重要な虚偽表示がないかどうかについて合理的な保証</span>を得て，', shortText: '監査の基準は合理的な保証を得ることを求めている', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-2', text: '<b>独立の立場から意見を表明する責任：</b><br>監査報告書において<span class="em-red">独立の立場</span>から連結財務諸表に対する<span class="em-red">意見を表明</span>することにある。', shortText: '独立の立場から意見を表明する責任', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-3', text: '<b>重要な虚偽表示の判断基準：</b><br>虚偽表示は，<span class="em-red">不正又は誤謬により発生する可能性</span>があり，<span class="em-red">個別に又は集計すると，連結財務諸表の利用者の意思決定に影響を与えると合理的に見込まれる場合</span>に，<span class="em-red">重要性がある</span>と判断される。', shortText: '重要な虚偽表示の判断基準', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-4', text: '<b>監査証拠を得るための手続（専門家判断・懐疑心）：</b><br>監査人は，我が国において一般に公正妥当と認められる<span class="em-red">監査の基準に従って，</span>監査の過程を通じて， <span class="em-red">職業的専門家としての判断</span>を行い，<span class="em-red">職業的懐疑心</span>を保持して以下を実施する。', shortText: '監査証拠を得るための手続（専門家判断・懐疑心）', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-5', text: '<b>監査手続の選択及び適用は監査人の判断による：</b><br>不正又は誤謬による<span class="em-red">重要な虚偽表示リスクを識別し，評価</span>する。また，<span class="em-red">重要な虚偽表示リスクに対応した監査手続を立案し，実施</span>する。<span class="em-red">監査手続の選択及び適用は監査人の判断</span>による。さらに，意見表明の基礎となる<span class="em-red">十分かつ適切な監査証拠を入手</span>する。', shortText: '監査手続の選択及び適用は監査人の判断による', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-6', text: '<b>監査の目的は，内部統制の有効性について意見表明するためのものではない：</b><br>連結財務諸表監査の目的は，<span class="em-red">内部統制の有効性について意見表明するためのものではない</span>が，監査人は，リスク評価の実施に際して，状況に応じた適切な<span class="em-red">監査手続を立案するため</span>に，<span class="em-red">監査に関連する内部統制を検討</span>する。', shortText: '監査の目的は，内部統制の有効性について意見表明するためのものではない', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-7', text: '<b>会計方針・適用方法、見積り評価の適切性・合理性、注記の妥当性評価：</b><br>経営者が採用した<span class="em-red">会計方針</span>及びその<span class="em-red">適用方法</span>の適切性，並びに経営者によって行われた会計上の<span class="em-red">見積もりの合理性</span>及び関連する<span class="em-red">注記事項の妥当性</span>を評価する。', shortText: '会計方針・適用方法、見積り評価の適切性・合理性、注記の妥当性評価', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-8', text: '<b>継続企業の前提に関する経営者の評価を検討する：</b><br>経営者が<span class="em-red">継続企業を前提として連結財務諸表を作成することが適切であるかどうか，</span>また，入手した監査証拠に基づき，<span class="em-red">重要な疑義を生じさせるような事象又は状況に関して重要な不確実性が認められるかどうか結論付ける。</span><br><span class="em-red">重要な不確実性が認められる場合は，</span>監査報告書において連結財務諸表の<span class="em-red">注記事項に注意を喚起</span>すること，又は<span class="em-red">重要な不確実性に関する連結財務諸表の注記事項が適切でない場合は，</span>連結財務諸表に対して<span class="em-red">除外事項付意見を表明</span>することが求められている。<br><span class="em-red">監査人の結論は，監査報告書日までに入手した監査証拠に基づいている</span>が，将来の事象や状況により，<span class="em-red">企業は継続企業として存続できなくなる可能性がある。</span>', shortText: '継続企業の前提に関する経営者の評価を検討する', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-9', text: '<b>全体としての財務諸表の表示を検討：</b><br>連結財務諸表の<span class="em-red">表示及び注記事項</span>が，一般に公正妥当と認められる企業会計の<span class="em-red">基準に準拠しているかどうか</span>とともに，関連する注記事項を含めた連結財務諸表の表示，構成及び内容，並びに連結財務諸表が基礎となる<span class="em-red">取引や会計事象を適正に表示しているかどうか</span>を評価する。', shortText: '全体としての財務諸表の表示を検討', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-10', text: '<b>監査人は単独で監査意見に対して責任を負う（グループ監査の場合のみ）：</b><br>連結財務諸表に対する意見表明の基礎となる，会社及び連結子会社の財務情報に関する十分かつ適切な監査証拠を入手するために，連結財務諸表の監査を計画し実施する。監査人は，連結財務諸表の監査に関する指揮，監督及び査閲に関して責任がある。監査人は，<span class="em-red">単独で監査意見に対して責任を負う。</span>', shortText: '監査人は単独で監査意見に対して責任を負う（グループ監査の場合のみ）', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-11', text: '<b>監査役等と適切な連携を図る：</b><br>監査人は，監査役等に対して，<span class="em-red">計画した監査の範囲</span>と<span class="em-red">その実施時期</span>，<span class="em-red">監査の実施過程で識別した内部統制の重要な不備を含む監査上の重要な発見事項</span>，及び<span class="em-red">監査の基準で求められているその他の事項</span>について<span class="em-red">報告</span>を行う。', shortText: '監査役等と適切な連携を図る', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-12', text: '<b>監査役等と適切な連携を図る（上場企業の監査の場合のみ）</b><br>監査人は，監査役等に対して，<span class="em-red">独立性</span>についての我が国における<span class="em-red">職業倫理に関する規定を遵守したこと</span>，並びに監査人の<span class="em-red">独立性に影響を与えると</span>合理的に考えられる事項，及び<span class="em-red">阻害要因を除去するための対応策</span>を講じている場合又は阻害要因を許容可能な水準にまで軽減するための<span class="em-red">セーフガード</span>を適用している場合はその内容について<span class="em-red">報告</span>を行う。', shortText: '（上場企業の監査の場合のみ）独立性に関する報告', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-13', text: '<b>監査上の主要な検討事項を決定して監査報告書に記載する：</b><br>（監査上の主要な検討事項の報告が要求される監査の場合のみ）<br>監査人は，<span class="em-red">監査役等と協議した事項</span>のうち，当連結会計年度の連結財務諸表の監査で<span class="em-red">特に重要であると判断した事項</span>を<span class="em-red">監査上の主要な検討事項</span>と決定し，<span class="em-red">監査報告書において記載</span>する。ただし，<span class="em-red">法令等により当該事項の公表が禁止されている場合</span>や，極めて限定的ではあるが，監査報告書において報告することにより生じる不利益が公共の利益を上回ると合理的に見込まれるため，<span class="em-red">監査人が報告すべきでないと判断した場合は，当該事項を記載しない</span>。', shortText: '監査上の主要な検討事項を決定して監査報告書に記載する', cat: 'auditor_resp', exclude: ['disclaimer'] },
+            { id: 'k9-14', text: '<b>(不表明)一般に公正妥当と認められる監査の基準に準拠して監査を行い意見を表明する：</b><br>監査人の責任は，<span class="em-red">我が国において一般に公正妥当と認められる監査の基準に準拠して監査を実施し，監査報告書において意見を表明することにある</span>。', shortText: '(不表明)一般に公正妥当と認められる監査の基準に準拠して監査を行い意見を表明する', cat: 'auditor_resp', only: ['disclaimer'] },
+            { id: 'k9-15', text: '<b>(不表明)監査証拠の十分性・適切性を確保できなかったこと：</b><br>しかしながら，本報告書の「意見不表明の根拠」に記載されているとおり，当監査法人は連結財務諸表に対する<span class="em-red">意見表明の基礎となる十分かつ適切な監査証拠を入手することができなかった</span>。', shortText: '(不表明)監査証拠の十分性・適切性を確保できなかったこと', cat: 'auditor_resp', only: ['disclaimer'] },
+            { id: 'k9-16', text: '<b>(不表明)職業倫理・独立性を順守していること：</b><br>当監査法人は，我が国における<span class="em-red">職業倫理</span>に関する規定に従って，会社及び連結子会社から<span class="em-red">独立</span>しており，また，監査人としての<span class="em-red">その他の倫理上の責任を果たしている</span>。', shortText: '(不表明)職業倫理・独立性を順守していること', cat: 'auditor_resp', only: ['disclaimer'] },
+
+            // 10. Interest
+            { id: 'k10-1', text: '<b>利害関係：</b><br>会社及び連結子会社と当監査法人又は業務執行社員との間には，<span class="em-red">公認会計士法の規定により記載すべき利害関係</span>はない。', shortText: '利害関係', cat: 'interest' }
+        ];
+
+        // --- 状態管理 ---
+        let state = {
+            screen: 'select',
+            opinion: null,
+            placedItems: {},
+            trashItems: [],
+            feedback: null,
+            shuffledKeywords: [],
+            selectedKeywordId: null // 新規: タップ選択用
+        };
+
+        // --- ロジック ---
+        let scrollPositions = {};
+
+        function saveScrollPositions() {
+            const slots = document.getElementById('slots');
+            const keywords = document.getElementById('keywords');
+            const trash = document.getElementById('trash-box');
+            if (slots) scrollPositions.slots = slots.scrollTop;
+            if (keywords) scrollPositions.keywords = keywords.scrollTop;
+            if (trash) scrollPositions.trash = trash.scrollTop;
+        }
+
+        function restoreScrollPositions() {
+            const slots = document.getElementById('slots');
+            const keywords = document.getElementById('keywords');
+            const trash = document.getElementById('trash-box');
+            if (slots && scrollPositions.slots !== undefined) slots.scrollTop = scrollPositions.slots;
+            if (keywords && scrollPositions.keywords !== undefined) keywords.scrollTop = scrollPositions.keywords;
+            if (trash && scrollPositions.trash !== undefined) trash.scrollTop = scrollPositions.trash;
+        }
+
+        function render() {
+            if (state.screen === 'game') saveScrollPositions();
+
+            const container = document.getElementById('app');
+            if (state.screen === 'select') renderSelect(container);
+            else if (state.screen === 'game') {
+                renderGame(container);
+                restoreScrollPositions();
+            }
+            else if (state.screen === 'result') renderResult(container);
+        }
+
+        function startGame(typeId) {
+            state.opinion = OPINION_TYPES.find(o => o.id === typeId);
+            state.placedItems = {};
+            CATEGORIES.forEach(c => state.placedItems[c.key] = []);
+
+            state.trashItems = [];
+            state.shuffledKeywords = [...KEYWORD_POOL].sort(() => Math.random() - 0.5);
+            state.selectedKeywordId = null;
+            state.screen = 'game';
+
+            const isSpecial = state.opinion.theme === 'special';
+            document.body.className = isSpecial
+                ? 'min-h-screen transition-colors duration-500 bg-slate-950 text-slate-100 theme-special h-[100dvh]'
+                : 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 theme-core h-[100dvh]';
+
+            render();
+        }
+
+        // --- タップ操作ロジック (New) ---
+        function handleKeywordClick(id) {
+            // 選択状態の切り替え
+            if (state.selectedKeywordId === id) {
+                state.selectedKeywordId = null; // 解除
+            } else {
+                state.selectedKeywordId = id; // 選択
+            }
+            render();
+        }
+
+        function handleSlotClick(targetType, targetKey) {
+            if (!state.selectedKeywordId) return;
+
+            // 移動実行
+            moveKeyword(state.selectedKeywordId, targetType, targetKey);
+            state.selectedKeywordId = null; // 移動後は選択解除
+        }
+
+        // --- Drag & Drop Mechanics (Original) ---
+        function handleDragStart(e, id) {
+            e.dataTransfer.setData('text/plain', id);
+            e.dataTransfer.effectAllowed = 'move';
+            e.target.classList.add('dragging');
+            // ドラッグ開始時に選択状態もセット（ハイブリッド操作用）
+            state.selectedKeywordId = id;
+            render(); 
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function moveKeyword(id, targetType, targetKey) {
+            // Remove from source
+            Object.keys(state.placedItems).forEach(key => {
+                state.placedItems[key] = state.placedItems[key].filter(kId => kId !== id);
+            });
+            state.trashItems = state.trashItems.filter(kId => kId !== id);
+
+            // Add to target
+            if (targetType === 'slot') {
+                const currentList = [...state.placedItems[targetKey], id];
+                // Auto-Sort
+                const correctKeywords = getCorrectKeywordsForOpinion(targetKey, state.opinion.id);
+                const correctIds = correctKeywords.map(k => k.id);
+                const safeIds = currentList.filter(kId => correctIds.includes(kId));
+                const otherIds = currentList.filter(kId => !correctIds.includes(kId));
+                safeIds.sort((a, b) => KEYWORD_POOL.findIndex(k => k.id === a) - KEYWORD_POOL.findIndex(k => k.id === b));
+                state.placedItems[targetKey] = [...safeIds, ...otherIds];
+            } else if (targetType === 'trash') {
+                state.trashItems.push(id);
+            }
+            // poolの場合はRender時に自動で戻る
+            render();
+        }
+
+        function handleDrop(e, targetType, targetKey) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            const id = e.dataTransfer.getData('text/plain');
+            if (id) {
+                moveKeyword(id, targetType, targetKey);
+                state.selectedKeywordId = null; // ドロップ後は選択解除
+            }
+        }
+
+        function removeKeyword(id) {
+            state.selectedKeywordId = id; // 戻すときも一瞬選択状態にする視覚効果
+            setTimeout(() => {
+                Object.keys(state.placedItems).forEach(key => {
+                    state.placedItems[key] = state.placedItems[key].filter(kId => kId !== id);
+                });
+                state.trashItems = state.trashItems.filter(kId => kId !== id);
+                state.selectedKeywordId = null;
+                render();
+            }, 100);
+        }
+
+        function getCorrectKeywordsForOpinion(catKey, opinionId) {
+            return KEYWORD_POOL.filter(k => {
+                if (k.cat !== catKey) return false;
+                if (k.only && !k.only.includes(opinionId)) return false;
+                if (k.exclude && k.exclude.includes(opinionId)) return false;
+                return true;
+            });
+        }
+
+        function checkAnswers() {
+            let score = 0;
+            let total = 0;
+            const results = {};
+
+            CATEGORIES.forEach(cat => {
+                const placedIds = state.placedItems[cat.key] || [];
+                placedIds.sort((a, b) => KEYWORD_POOL.findIndex(k => k.id === a) - KEYWORD_POOL.findIndex(k => k.id === b));
+
+                const isMandatoryRemoved = (state.opinion.id === 'disclaimer' && (cat.key === 'kam' || cat.key === 'oi' || cat.key === 'gc'));
+                total++;
+                let correct = false;
+                let message = "";
+
+                if (isMandatoryRemoved) {
+                    correct = placedIds.length === 0;
+                    message = correct ? "正解：不表明時は削除" : "誤り：記載不可項目";
+                    if (correct) score++;
+                } else {
+                    if (placedIds.length === 0) {
+                        message = "未配置";
+                    } else {
+                        const errors = [];
+                        placedIds.forEach(id => {
+                            const keyword = KEYWORD_POOL.find(k => k.id === id);
+                            const isCorrectCat = keyword.cat === cat.key;
+                            const isAllowed = (!keyword.only || keyword.only.includes(state.opinion.id)) &&
+                                (!keyword.exclude || !keyword.exclude.includes(state.opinion.id));
+                            if (!isCorrectCat) errors.push("配置箇所違い");
+                            if (!isAllowed) errors.push("類型使用不可");
+                        });
+
+                        const expectedKeywords = getCorrectKeywordsForOpinion(cat.key, state.opinion.id);
+                        if (placedIds.length < expectedKeywords.length) {
+                            errors.push("不足あり");
+                        }
+
+                        if (errors.length === 0) {
+                            correct = true;
+                            score++;
+                            message = "正解";
+                        } else {
+                            message = "誤り: " + [...new Set(errors)].join(", ");
+                        }
+                    }
+                }
+                results[cat.key] = { correct, message, placedIds };
+            });
+
+            state.feedback = { score, total, results };
+            state.screen = 'result';
+            render();
+        }
+
+        // --- components helper ---
+        function createKeywordChip(kw, isFullText, isDraggable) {
+            const div = document.createElement('div');
+            const isSelected = state.selectedKeywordId === kw.id;
+            
+            // Base classes
+            let baseClass = `p-2 rounded-lg border text-xs font-normal shadow-sm mb-1 tap-target transition-all duration-100 select-none `;
+            
+            // Theme & State classes
+            if (document.body.classList.contains('theme-special')) {
+                baseClass += isSelected 
+                    ? `bg-slate-700 border-amber-500 ring-2 ring-amber-500 text-slate-100 z-10 scale-105 ` 
+                    : `bg-slate-800 border-slate-600 text-slate-300 hover:border-amber-500 `;
+            } else {
+                baseClass += isSelected 
+                    ? `bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500 text-indigo-900 z-10 scale-105 ` 
+                    : `bg-white border-slate-200 text-slate-600 hover:border-indigo-400 `;
+            }
+
+            div.className = baseClass;
+            div.innerHTML = isFullText ? kw.text : kw.shortText;
+
+            // Events
+            div.onclick = (e) => {
+                e.stopPropagation();
+                // 既に配置済みの場合は削除(プールに戻す)扱い、プールにある場合は選択扱い
+                const isPlaced = Object.values(state.placedItems).some(arr => arr.includes(kw.id)) || state.trashItems.includes(kw.id);
+                if(isPlaced) {
+                    removeKeyword(kw.id);
+                } else {
+                    handleKeywordClick(kw.id);
+                }
+            };
+
+            if (isDraggable) {
+                div.draggable = true;
+                div.ondragstart = (e) => handleDragStart(e, kw.id);
+                div.ondragend = (e) => handleDragEnd(e);
+            }
+
+            return div;
+        }
+
+        // --- 画面描画 ---
+        function renderSelect(el) {
+            document.body.className = 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 overflow-y-auto';
+            el.innerHTML = `
+                <div class="min-h-screen flex items-center justify-center p-4 md:p-6 fade-in">
+                    <div class="max-w-2xl w-full bg-white rounded-3xl shadow-2xl p-6 md:p-10 border border-slate-100">
+                        <div class="flex flex-col md:flex-row items-center gap-5 mb-8 md:mb-10">
+                            <div class="bg-indigo-600 p-4 rounded-2xl text-white shadow-xl">${icons.book}</div>
+                            <div class="text-center md:text-left">
+                                <h1 class="text-2xl md:text-3xl font-black tracking-tight text-slate-800">監査報告書マスター</h1>
+                                <p class="text-slate-500 font-bold flex flex-wrap justify-center md:justify-start items-center gap-2 mt-1 text-sm md:text-base">
+                                    <span>スマホ対応・タップ操作OK</span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">演習する意見類型を選択</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="opinion-buttons"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            const btnContainer = el.querySelector('#opinion-buttons');
+            OPINION_TYPES.forEach(type => {
+                const btn = document.createElement('button');
+                btn.className = `group flex flex-col p-5 md:p-6 rounded-2xl border-2 border-slate-100 ${type.hover} transition-all text-left relative overflow-hidden active:scale-95 touch-manipulation`;
+                btn.onclick = () => startGame(type.id);
+                btn.innerHTML = `
+                    <div class="w-fit px-3 py-1 rounded-full text-white text-[10px] font-black mb-3 ${type.color}">${type.id === 'disclaimer' ? 'SPECIAL' : 'CORE'}</div>
+                    <h3 class="text-base md:text-lg font-bold text-slate-700 flex items-center justify-between w-full">
+                        ${type.name} <span class="text-slate-300 group-hover:text-blue-500">${icons.arrowRight}</span>
+                    </h3>
+                `;
+                btnContainer.appendChild(btn);
+            });
+        }
+
+        function renderGame(el) {
+            const isSpecial = state.opinion.theme === 'special';
+
+            const headerBtnClass = isSpecial
+                ? 'bg-slate-800 text-slate-400 hover:text-white border-slate-700'
+                : 'bg-white text-slate-500 border-slate-200 shadow-sm';
+
+            const checkBtnClass = isSpecial
+                ? 'bg-amber-600 hover:bg-amber-500 text-black'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white';
+
+            const kwContainerClass = isSpecial
+                ? 'bg-slate-900 border-slate-800'
+                : 'bg-white border-slate-200';
+
+            const containerClass = "h-full flex flex-col lg:flex-row gap-0 lg:gap-8 overflow-hidden relative";
+
+            el.innerHTML = `
+                <div class="${containerClass}">
+                    
+                    <!-- Top Area: Header + Slots (Mobile: 55%, Desktop: Left Half) -->
+                    <div class="w-full lg:w-1/2 flex flex-col h-full lg:h-auto overflow-hidden mobile-scroll-top lg:pr-4">
+                        <header class="flex-none p-4 pb-2 flex items-center justify-between gap-2 z-20 bg-inherit border-b lg:border-none border-slate-200/10">
+                            <button onclick="state.screen='select';render();" class="flex items-center gap-1 font-bold px-3 py-2 rounded-xl border text-xs transition-colors ${headerBtnClass}">
+                                ${icons.chevronLeft} TOP
+                            </button>
+                            <div class="px-3 py-2 rounded-xl text-white text-xs font-black shadow-lg border ${state.opinion.border} ${state.opinion.color} truncate max-w-[140px]">
+                                ${state.opinion.name}
+                            </div>
+                            <button onclick="checkAnswers()" class="${checkBtnClass} px-4 py-2 rounded-xl text-xs font-black shadow-xl flex items-center gap-1 transition-all active:scale-95">
+                                判定 ${icons.check}
+                            </button>
+                        </header>
+
+                        <div class="flex-grow overflow-y-auto p-4 pt-2 space-y-3 custom-scrollbar" id="slots"></div>
+                    </div>
+                    
+                    <!-- Bottom Area: Keywords + Trash (Mobile: Fixed 45%, Desktop: Right Half) -->
+                    <div class="w-full lg:w-1/2 flex flex-col lg:h-full mobile-fixed-bottom lg:static lg:p-4 lg:pl-0">
+                        
+                        <!-- Keywords Pool -->
+                        <div class="flex-grow rounded-t-3xl lg:rounded-3xl p-4 lg:p-6 border-t lg:border shadow-[0_-4px_20px_rgba(0,0,0,0.1)] lg:shadow-sm flex flex-col overflow-hidden relative z-30 transition-all ${kwContainerClass}">
+                            
+                            <!-- Tab/Handle for mobile visual -->
+                            <div class="w-12 h-1.5 bg-slate-300 rounded-full mx-auto mb-3 lg:hidden opacity-50"></div>
+
+                            <div class="flex items-center justify-between mb-2 shrink-0">
+                                <h2 class="text-[10px] font-black uppercase tracking-widest ${isSpecial ? 'text-slate-500' : 'text-slate-400'}">
+                                    ${state.selectedKeywordId ? '<span class="text-indigo-500 animate-pulse">配置先をタップしてください</span>' : 'キーワードプール (タップで選択)'}
+                                </h2>
+                                <!-- Trash Icon as Drop Target for Keywords -->
+                                <div id="trash-box-mini" class="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border border-dashed transition-colors cursor-pointer ${isSpecial ? 'text-slate-500 border-slate-600 hover:text-rose-400' : 'text-slate-400 border-slate-300 hover:text-rose-500'}">
+                                    ${icons.trash} 除外BOXへ
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2 overflow-y-auto pr-2 custom-scrollbar content-start h-full pb-10 lg:pb-0" id="keywords"></div>
+                        </div>
+
+                        <!-- Full Trash Box (Hidden on mobile mostly, simplified above) -->
+                        <div id="trash-box-full" class="hidden lg:flex h-1/3 mt-4 shrink-0 rounded-2xl border-2 border-dashed p-4 transition-all flex-wrap gap-2 content-start overflow-y-auto custom-scrollbar ${isSpecial ? 'border-slate-700 bg-black/20 text-slate-500 hover:border-rose-900' : 'border-slate-300 bg-slate-50 text-slate-400 hover:border-rose-300'}">
+                             <div class="w-full text-[10px] font-black uppercase tracking-widest mb-2 flex items-center justify-between sticky top-0 bg-inherit z-10 pb-2 border-b border-inherit">
+                                <span>${icons.trash} 除外ボックス</span>
+                            </div>
+                            <div id="trash-content" class="w-full flex flex-wrap gap-2 pt-2"></div>
+                        </div>
+
+                    </div>
+                </div>
+            `;
+
+            // === 1. Render Slots ===
+            const slotContainer = el.querySelector('#slots');
+            CATEGORIES.forEach(cat => {
+                const isRemoved = isSpecial && ['kam', 'oi', 'gc'].includes(cat.key);
+                const placedIds = state.placedItems[cat.key] || [];
+
+                const slot = document.createElement('div');
+                slot.className = `relative group transition-all min-h-[90px] flex flex-col tap-target`; // tap-target added
+
+                // Click event for tap-to-place
+                slot.onclick = () => handleSlotClick('slot', cat.key);
+
+                if (!isRemoved) {
+                    slot.ondragover = (e) => handleDragOver(e);
+                    slot.ondragleave = (e) => handleDragLeave(e);
+                    slot.ondrop = (e) => handleDrop(e, 'slot', cat.key);
+                }
+
+                // Styles
+                const slotBaseClass = isSpecial
+                    ? 'bg-slate-900 border-slate-700'
+                    : 'bg-white border-slate-200';
+                
+                // Highlight slot if item is selected
+                let activeClass = "";
+                if (state.selectedKeywordId && !isRemoved) {
+                    activeClass = isSpecial 
+                        ? "ring-2 ring-indigo-500 border-transparent bg-slate-800" 
+                        : "ring-2 ring-indigo-400 border-transparent bg-indigo-50";
+                }
+
+                const slotRemovedClass = isSpecial
+                    ? 'bg-black border-slate-800 opacity-50'
+                    : 'bg-slate-100 border-dashed border-slate-300 opacity-50';
+
+                const baseStyle = isRemoved ? slotRemovedClass : `${slotBaseClass} ${activeClass}`;
+
+                // Content for slot
+                let contentHTML = "";
+                if (isRemoved) {
+                    if (isSpecial && cat.key === 'gc') {
+                        contentHTML = `<div class="w-full text-center text-[10px] opacity-70 mt-2 text-rose-400 font-bold">※通常記載しない</div>`;
+                    } else {
+                        contentHTML = `<div class="w-full text-center text-[10px] opacity-50 mt-2">※この類型では削除</div>`;
+                    }
+                } else if (placedIds.length === 0) {
+                    const guideText = state.selectedKeywordId 
+                        ? `<span class="text-indigo-500 font-bold animate-pulse">ここをタップして配置</span>` 
+                        : `キーワードを配置`;
+                    contentHTML = `<div class="w-full text-center text-[10px] opacity-40 mt-2 italic">${guideText}</div>`;
+                }
+
+                slot.innerHTML = `
+                    <div class="flex-grow flex flex-col p-3 md:p-4 rounded-2xl border-2 transition-all ${baseStyle}">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-widest ${isSpecial ? 'text-slate-500' : 'text-slate-400'}">${cat.name}</span>
+                            ${isRemoved
+                                ? (isSpecial && cat.key === 'gc'
+                                    ? '<span class="text-[9px] font-black text-rose-500 bg-rose-50/10 px-2 py-0.5 rounded-full border border-rose-500/20">原則不要</span>'
+                                    : '<span class="text-[9px] font-black text-rose-500 bg-rose-50/10 px-2 py-0.5 rounded-full border border-rose-500/20">不要区分</span>')
+                                : ''}
+                        </div>
+                        <div class="flex flex-col gap-2" id="slot-content-${cat.key}">
+                             ${contentHTML}
+                        </div>
+                    </div>
+                `;
+                slotContainer.appendChild(slot);
+
+                // Render placed cards inside slot
+                if (!isRemoved && placedIds.length > 0) {
+                    const contentArea = slot.querySelector(`#slot-content-${cat.key}`);
+                    placedIds.forEach(id => {
+                        const kw = KEYWORD_POOL.find(k => k.id === id);
+                        const card = createKeywordChip(kw, true, true);
+                        contentArea.appendChild(card);
+                    });
+                }
+            });
+
+            // === 2. Render Trash (Mini & Full) ===
+            // Mini Trash (Mobile/Header of Keywords)
+            const trashMini = el.querySelector('#trash-box-mini');
+            trashMini.onclick = () => {
+                if(state.selectedKeywordId) handleSlotClick('trash', null);
+                else {
+                    // Show trash content modal or alert if empty? 
+                    // For now, let's just make it a drop zone for desktop mostly and tap target for mobile
+                }
+            };
+            trashMini.ondragover = (e) => handleDragOver(e);
+            trashMini.ondragleave = (e) => handleDragLeave(e);
+            trashMini.ondrop = (e) => handleDrop(e, 'trash', null);
+            // Highlight if selected
+            if(state.selectedKeywordId) {
+                trashMini.classList.add('ring-2', 'ring-rose-400', 'bg-rose-50', 'text-rose-600');
+            }
+
+            // Full Trash (Desktop)
+            const trashBoxFull = el.querySelector('#trash-box-full');
+            if (trashBoxFull) {
+                trashBoxFull.ondragover = (e) => handleDragOver(e);
+                trashBoxFull.ondragleave = (e) => handleDragLeave(e);
+                trashBoxFull.ondrop = (e) => handleDrop(e, 'trash', null);
+                const trashContent = el.querySelector('#trash-content');
+                
+                state.trashItems.forEach(id => {
+                    const kw = KEYWORD_POOL.find(k => k.id === id);
+                    const card = createKeywordChip(kw, false, true);
+                    card.classList.add('opacity-70');
+                    trashContent.appendChild(card);
+                });
+            }
+
+            // === 3. Render Keyword Pool ===
+            const keywordContainer = el.querySelector('#keywords');
+            // Drop back to pool
+            keywordContainer.ondragover = (e) => handleDragOver(e);
+            keywordContainer.ondragleave = (e) => handleDragLeave(e);
+            keywordContainer.ondrop = (e) => handleDrop(e, 'pool', null);
+            
+            state.shuffledKeywords.forEach(kw => {
+                // Check if placed anywhere
+                const isPlacedInSlot = Object.values(state.placedItems).some(arr => arr.includes(kw.id));
+                const isInTrash = state.trashItems.includes(kw.id);
+
+                if (!isPlacedInSlot && !isInTrash) {
+                    const card = createKeywordChip(kw, false, true);
+                    keywordContainer.appendChild(card);
+                }
+            });
+        }
+
+        function renderResult(el) {
+            document.body.className = 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 overflow-y-auto';
+            
+            const isSpecial = state.opinion.theme === 'special';
+            const pct = Math.round((state.feedback.score / state.feedback.total) * 100);
+
+            const headerBtnClass = isSpecial
+                ? 'bg-slate-800 text-slate-400 hover:text-white border-slate-700'
+                : 'bg-white text-slate-500 border-slate-200 shadow-sm';
+
+            el.innerHTML = `
+                ${state.feedback.score === state.feedback.total ? '<div id="celebration-container" class="fixed inset-0 pointer-events-none z-50 overflow-hidden"></div>' : ''}
+                <div class="min-h-screen p-4 md:p-8 flex flex-col fade-in pb-20">
+                    <header class="flex flex-col items-center justify-center gap-4 mb-8 relative">
+                         <div class="flex gap-2 w-full justify-between items-center">
+                             <button onclick="state.screen='select';render();" class="flex items-center gap-2 font-bold px-4 py-2 rounded-xl border transition-colors text-xs ${headerBtnClass}">
+                                ${icons.chevronLeft} TOP
+                            </button>
+                             <div class="flex gap-2">
+                                <button onclick="state.screen='game';render();" class="px-4 py-2 rounded-xl border-2 font-black transition-all active:scale-95 text-xs ${isSpecial ? 'bg-slate-800 border-slate-700 text-slate-300 hover:border-emerald-500' : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-500'}">
+                                    修正
+                                </button>
+                                <button onclick="startGame(state.opinion.id)" class="px-4 py-2 rounded-xl border-2 font-black transition-all active:scale-95 text-xs ${isSpecial ? 'bg-slate-800 border-slate-700 text-slate-300 hover:border-amber-500' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200'}">
+                                    リトライ
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col items-center mt-2">
+                            <div class="px-6 py-2 rounded-2xl text-white font-black shadow-lg border-2 mb-2 ${state.opinion.border} ${state.opinion.color}">
+                                ${state.opinion.name}
+                            </div>
+                            <div class="text-4xl font-black ${isSpecial ? 'text-amber-500' : 'text-indigo-600'}">
+                                ${state.feedback.score} / ${state.feedback.total} <span class="text-lg opacity-50">(${pct}%)</span>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="flex flex-col lg:flex-row gap-8 flex-grow">
+                        <!-- Left: Your Answer -->
+                        <div class="lg:w-1/2 space-y-3">
+                            <h3 class="text-center font-black mb-2 text-slate-400 text-sm">あなたの回答</h3>
+                            <div id="result-slots" class="space-y-3"></div>
+                        </div>
+
+                        <!-- Right: Correct Model -->
+                        <div class="lg:w-1/2 space-y-3 mt-8 lg:mt-0">
+                            <h3 class="text-center font-black mb-2 ${isSpecial ? 'text-amber-600' : 'text-indigo-600'} text-sm">正解モデル</h3>
+                            <div id="model-slots" class="space-y-3"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const userContainer = el.querySelector('#result-slots');
+            const modelContainer = el.querySelector('#model-slots');
+
+            CATEGORIES.forEach(cat => {
+                const res = state.feedback.results[cat.key];
+                const isMandatoryRemoved = (state.opinion.id === 'disclaimer' && (cat.key === 'kam' || cat.key === 'oi' || cat.key === 'gc'));
+
+                // --- User Slot ---
+                const userSlot = document.createElement('div');
+                let userStyle = res.correct 
+                    ? (isSpecial ? 'bg-emerald-900/30 border-emerald-800 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-800')
+                    : (isSpecial ? 'bg-rose-900/30 border-rose-800 text-rose-400' : 'bg-rose-50 border-rose-200 text-rose-800');
+
+                userSlot.className = `flex flex-col p-4 rounded-2xl border-2 ${userStyle} relative`;
+
+                let userContent = "";
+                if (res.placedIds.length === 0) {
+                    userContent = isMandatoryRemoved && res.correct ? "（空欄：正解）" : "（未配置）";
+                } else {
+                    userContent = res.placedIds.map(id => {
+                        const kw = KEYWORD_POOL.find(kd => kd.id === id);
+                        return `<div class="bg-white/80 p-2 rounded text-xs font-normal border border-slate-200 shadow-sm mb-1 break-words">${kw.shortText}</div>`;
+                    }).join("");
+                }
+
+                userSlot.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] font-black uppercase tracking-widest opacity-70">${cat.name}</span>
+                        ${!res.correct ? `<span class="bg-rose-500 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">誤り</span>` : ''}
+                    </div>
+                    <div class="text-[13px] font-normal leading-relaxed">
+                        ${userContent}
+                    </div>
+                     ${!res.correct ? `<div class="mt-2 text-[10px] font-bold opacity-80 border-t border-current pt-1">理由: ${res.message}</div>` : ''}
+                `;
+                userContainer.appendChild(userSlot);
+
+                // --- Model Slot ---
+                const modelSlot = document.createElement('div');
+                const correctKeywords = getCorrectKeywordsForOpinion(cat.key, state.opinion.id);
+                const isModelRemoved = isMandatoryRemoved;
+
+                const modelStyle = isSpecial
+                    ? (isModelRemoved ? 'bg-black border-slate-800 opacity-50' : 'bg-slate-900 border-slate-700 text-slate-300')
+                    : (isModelRemoved ? 'bg-slate-100 border-dashed border-slate-300 opacity-50' : 'bg-white border-slate-200 text-slate-600');
+
+                modelSlot.className = `flex flex-col p-4 rounded-2xl border-2 ${modelStyle}`;
+
+                let modelContent = "";
+                if (isModelRemoved) {
+                    modelContent = isSpecial && cat.key === 'gc' ? "※通常記載しない" : "※記載してはならない";
+                } else {
+                    if (correctKeywords.length > 0) {
+                        modelContent = correctKeywords.map(kw => {
+                            const style = isSpecial
+                                ? 'bg-slate-800 text-slate-300 border-slate-600'
+                                : 'bg-white text-slate-600 border-dashed border-slate-300';
+                            return `<div class="${style} p-2 rounded text-xs font-normal border shadow-sm mb-1 break-words">${kw.text}</div>`;
+                        }).join("");
+                    } else {
+                        modelContent = "（該当なし）";
+                    }
+                }
+                modelSlot.innerHTML = `
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest opacity-70">${cat.name}</span>
+                    </div>
+                    <div class="text-[13px] font-normal leading-relaxed opacity-90">
+                        ${modelContent}
+                    </div>
+                `;
+                modelContainer.appendChild(modelSlot);
+            });
+
+            if (state.feedback.score === state.feedback.total) {
+                setTimeout(triggerCelebration, 500);
+            }
+        }
+
+        function triggerCelebration() {
+            const container = document.getElementById('celebration-container');
+            if (!container) return;
+            const emojis = ['🎉', '💯', '💮', '🎊', '👏', '✨'];
+            const duration = 5000;
+            const end = Date.now() + duration;
+
+            (function frame() {
+                const count = 10;
+                const rootX = Math.random() * 100 + '%';
+                const rootY = Math.random() * 80 + 10 + '%';
+
+                for (let i = 0; i < count; i++) {
+                    const span = document.createElement('span');
+                    span.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+                    span.style.position = 'absolute';
+                    span.style.left = rootX;
+                    span.style.top = rootY;
+                    span.style.fontSize = Math.random() * 2 + 1.5 + 'rem';
+                    span.style.userSelect = 'none';
+                    span.style.pointerEvents = 'none';
+                    span.style.zIndex = 100;
+
+                    const angle = Math.random() * Math.PI * 2;
+                    const velocity = Math.random() * 200 + 50;
+                    const tx = Math.cos(angle) * velocity;
+                    const ty = Math.sin(angle) * velocity;
+                    const rotation = Math.random() * 720 - 360;
+
+                    span.animate([
+                        { transform: 'translate(-50%, -50%) scale(0) rotate(0deg)', opacity: 1 },
+                        { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(1.2) rotate(${rotation}deg)`, opacity: 0 }
+                    ], {
+                        duration: Math.random() * 1000 + 800,
+                        easing: 'cubic-bezier(0, .9, .57, 1)',
+                        fill: 'forwards'
+                    }).onfinish = () => span.remove();
+                    container.appendChild(span);
+                }
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+        }
+
+        // 初期化
+        render();
+    </script>
+</body>
+</html>
