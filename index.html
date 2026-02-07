@@ -308,15 +308,24 @@
         }
 
         // --- 除外BOX操作ロジック (New: 2-step Toggle) ---
+        // --- 除外BOX操作ロジック (New: 2-step Toggle) ---
         function handleTrashBtnClick() {
             // 1. キーワードが選択されている場合: 移動実行
             if (state.selectedKeywordId) {
+                const isPlaced = Object.values(state.placedItems).some(arr => arr.includes(state.selectedKeywordId));
+
                 if (state.isTrashMode) {
-                    // 除外BOX -> プールに戻す
+                    // 除外BOX表示時: プールに戻す
                     removeKeyword(state.selectedKeywordId);
                 } else {
-                    // プール/スロット -> 除外BOXへ
-                    moveKeyword(state.selectedKeywordId, 'trash');
+                    // プール表示時
+                    if (isPlaced) {
+                        // 配置済みアイテムの場合 -> プールに戻す (New)
+                        removeKeyword(state.selectedKeywordId);
+                    } else {
+                        // プール内アイテムの場合 -> 除外BOXへ
+                        moveKeyword(state.selectedKeywordId, 'trash');
+                    }
                 }
                 state.selectedKeywordId = null;
                 state.trashBtnConfirm = false; // Reset confirm state execution
@@ -504,27 +513,10 @@
             let lastTap = 0;
             div.onclick = (e) => {
                 e.stopPropagation();
-                // 既に配置済みの場合は削除(プールに戻す)扱い、プールにある場合は選択扱い
-                // 除外BOX内のアイテムは「配置済み」ではなく「プール」と同様に選択可能にする
-                const isPlaced = Object.values(state.placedItems).some(arr => arr.includes(kw.id));
 
-                if (isPlaced) {
-                    const currentTime = new Date().getTime();
-                    const tapLength = currentTime - lastTap;
-                    if (tapLength < 300 && tapLength > 0) {
-                        // Double Tap
-                        removeKeyword(kw.id);
-                        e.target.classList.remove('animate-pulse', 'ring-2', 'ring-rose-500'); // Remove visual cue
-                    } else {
-                        // Single Tap (Visual Cue)
-                        e.target.classList.add('animate-pulse', 'ring-2', 'ring-rose-500');
-                        setTimeout(() => e.target.classList.remove('animate-pulse', 'ring-2', 'ring-rose-500'), 1000);
-                        // Optional: Show toast or hint "Double tap to remove"
-                    }
-                    lastTap = currentTime;
-                } else {
-                    handleKeywordClick(kw.id);
-                }
+                // 配置済み、ゴミ箱、プールすべてのアイテムを選択可能にする
+                // (配置済みアイテムを選択→ボタンでプールに戻すフローを有効化)
+                handleKeywordClick(kw.id);
             };
 
             if (isDraggable) {
@@ -576,6 +568,11 @@
         function renderGame(el) {
             const isSpecial = state.opinion.theme === 'special';
 
+            // Re-apply body classes for Game Mode (important when returning from Result screen)
+            document.body.className = isSpecial
+                ? 'min-h-screen transition-colors duration-500 bg-slate-950 text-slate-100 theme-special h-[100dvh] overflow-hidden'
+                : 'min-h-screen transition-colors duration-500 bg-slate-50 text-slate-900 theme-core h-[100dvh] overflow-hidden';
+
             const headerBtnClass = isSpecial
                 ? 'bg-slate-800 text-slate-400 hover:text-white border-slate-700'
                 : 'bg-white text-slate-500 border-slate-200 shadow-sm';
@@ -626,7 +623,9 @@
                                     ${state.isTrashMode ? icons.rotate : icons.trash}
                                     <span class="text-[10px] font-bold">
                                         ${state.selectedKeywordId
-                    ? (state.isTrashMode ? 'プールへ戻す' : '除外する')
+                    ? (state.isTrashMode
+                        ? 'プールへ戻す'
+                        : (Object.values(state.placedItems).some(arr => arr.includes(state.selectedKeywordId)) ? 'プールへ戻す' : '除外する'))
                     : (state.trashBtnConfirm
                         ? (state.isTrashMode ? 'プールへ' : '除外BOXへ')
                         : (state.isTrashMode ? 'プール' : '除外BOX'))}
