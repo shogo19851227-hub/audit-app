@@ -586,13 +586,11 @@
             const btnContainer = el.querySelector('#opinion-buttons');
             OPINION_TYPES.forEach(type => {
                 const btn = document.createElement('button');
-                btn.className = `group flex flex-col p-5 md:p-6 rounded-2xl border-2 border-slate-100 ${type.hover} transition-all text-left relative overflow-hidden active:scale-95 touch-manipulation`;
+                btn.className = `group flex items-center justify-between p-3 md:p-4 rounded-xl border-2 border-slate-100 ${type.hover} transition-all text-left relative overflow-hidden active:scale-95 touch-manipulation`;
                 btn.onclick = () => startGame(type.id);
                 btn.innerHTML = `
-                    <div class="w-fit px-3 py-1 rounded-full text-white text-[10px] font-black mb-3 ${type.color}">${type.id === 'disclaimer' ? 'SPECIAL' : 'CORE'}</div>
-                    <h3 class="text-base md:text-lg font-bold text-slate-700 flex items-center justify-between w-full">
-                        ${type.name} <span class="text-slate-300 group-hover:text-blue-500">${icons.arrowRight}</span>
-                    </h3>
+                    <span class="text-sm md:text-base font-bold text-slate-700">${type.name}</span>
+                    <span class="text-slate-300 group-hover:text-blue-500">${icons.arrowRight}</span>
                 `;
                 btnContainer.appendChild(btn);
             });
