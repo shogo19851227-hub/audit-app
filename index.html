@@ -286,7 +286,28 @@
             state.trashItems = [];
             state.shuffledKeywords = [...KEYWORD_POOL].sort(() => Math.random() - 0.5);
             state.selectedKeywordId = null;
+            state.isTrashMode = false; // Reset trash mode
+            state.trashBtnConfirm = false; // Reset confirm
             state.screen = 'game';
+
+            // --- Auto-fill Logic (New) ---
+            // 1. Collect all correct keywords for this opinion
+            let allCorrectKeywords = [];
+            CATEGORIES.forEach(cat => {
+                const correct = getCorrectKeywordsForOpinion(cat.key, typeId);
+                allCorrectKeywords = allCorrectKeywords.concat(correct);
+            });
+
+            // 2. Shuffle and pick 20
+            allCorrectKeywords.sort(() => Math.random() - 0.5);
+            const prefillCount = Math.min(20, allCorrectKeywords.length);
+            const prefillKeywords = allCorrectKeywords.slice(0, prefillCount);
+
+            // 3. Place them
+            prefillKeywords.forEach(kw => {
+                state.placedItems[kw.cat].push(kw.id);
+            });
+            // -----------------------------
 
             const isSpecial = state.opinion.theme === 'special';
             document.body.className = isSpecial
