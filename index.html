@@ -298,9 +298,12 @@
                 allCorrectKeywords = allCorrectKeywords.concat(correct);
             });
 
-            // 2. Shuffle and pick 20
+            // 2. Shuffle and pick
             allCorrectKeywords.sort(() => Math.random() - 0.5);
-            const prefillCount = Math.min(20, allCorrectKeywords.length);
+
+            // 意見不表明(disclaimer)は5個、それ以外は20個
+            const targetCount = (typeId === 'disclaimer') ? 5 : 20;
+            const prefillCount = Math.min(targetCount, allCorrectKeywords.length);
             const prefillKeywords = allCorrectKeywords.slice(0, prefillCount);
 
             // 3. Place them
