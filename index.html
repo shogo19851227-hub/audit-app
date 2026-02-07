@@ -828,18 +828,28 @@
                 grid.appendChild(card);
             });
 
-            // === レンダリング完了後のスクロールリセット ===
-            requestAnimationFrame(() => {
-                window.scrollTo(0, 0);
+            // === iOS WebKit向け強力スクロールリセット ===
+            const forceScrollReset = () => {
+                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                 document.body.scrollTop = 0;
                 document.documentElement.scrollTop = 0;
                 el.scrollTop = 0;
-                // ヘッダーを確実に表示
                 const header = el.querySelector('header');
                 if (header) {
                     header.scrollIntoView({ behavior: 'instant', block: 'start' });
                 }
+            };
+
+            // 複数タイミングでリセット（iOS WebKit対策）
+            forceScrollReset();
+            requestAnimationFrame(() => {
+                forceScrollReset();
+                requestAnimationFrame(() => {
+                    forceScrollReset();
+                });
             });
+            setTimeout(forceScrollReset, 50);
+            setTimeout(forceScrollReset, 100);
         }
 
         function renderResult(el) {
